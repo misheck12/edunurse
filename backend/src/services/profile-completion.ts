@@ -61,7 +61,7 @@ export async function requireCompleteProfile(
 
   // Check if profile is complete
   if (!isProfileComplete(user)) {
-    throw reply.forbidden({
+    return reply.code(403).send({
       error: "ProfileIncomplete",
       message: "Please complete your profile before accessing this feature.",
       requiredFields: {
