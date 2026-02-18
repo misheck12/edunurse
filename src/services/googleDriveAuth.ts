@@ -21,6 +21,48 @@ declare global {
 
 let googleScriptPromise: Promise<void> | null = null;
 
+function normalizeGoogleRedirectUri(candidate: string, origin: string) {
+  const trimmed = candidate.trim();
+  if (!trimmed) return origin;
+  if (trimmed === "postmessage") return "postmessage";
+
+  try {
+    const parsed = trimmed.startsWith("http://") || trimmed.startsWith("https://")
+      ? new URL(trimmed)
+      : new URL(trimmed, origin);
+    const pathname =
+      parsed.pathname && parsed.pathname !== "/" ? parsed.pathname.replace(/\/+$/, "") : "";
+    return `${parsed.origin}${pathname}`;
+  } catch {
+    return origin;
+  }
+}
+
+export function resolveGoogleOAuthRedirectUri(preferred?: string) {
+  if (typeof window === "undefined") {
+    return (preferred && preferred.trim()) || "http://localhost:3000";
+  }
+
+  const origin = window.location.origin.replace(/\/+$/, "");
+  const configured = normalizeGoogleRedirectUri(preferred ?? "", origin);
+
+  if (configured === "postmessage") {
+    return configured;
+  }
+
+  try {
+    const configuredOrigin = new URL(configured).origin;
+    if (configuredOrigin !== origin) {
+      // Prevent cross-origin redirect mismatches caused by stale env values.
+      return origin;
+    }
+  } catch {
+    return origin;
+  }
+
+  return configured || origin;
+}
+
 function loadGoogleIdentityScript() {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Google OAuth is only available in browser."));
@@ -83,11 +125,13 @@ export async function requestGoogleDriveAuthorizationCode(input: {
   const scopeList =
     input.scopes?.join(" ") ||
     "https://www.googleapis.com/auth/drive.readonly";
-  const redirectUri =
-    input.redirectUri ??
-    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  const redirectUri = resolveGoogleOAuthRedirectUri(input.redirectUri);
 
-  return await new Promise<{ authorizationCode: string; scope?: string }>(
+  return await new Promise<{
+    authorizationCode: string;
+    scope?: string;
+    redirectUri: string;
+  }>(
     (resolve, reject) => {
       const codeClient = oauth2.initCodeClient({
       client_id: input.clientId,
@@ -104,10 +148,29 @@ export async function requestGoogleDriveAuthorizationCode(input: {
         resolve({
           authorizationCode: response.code,
           scope: response.scope,
+          redirectUri,
         });
       },
       error_callback: (error) => {
-        reject(error instanceof Error ? error : new Error("Google OAuth popup failed."));
+        if (error instanceof Error) {
+          reject(error);
+          return;
+        }
+        const raw =
+          typeof error === "string"
+            ? error
+            : typeof error === "object" && error !== null
+              ? JSON.stringify(error)
+              : "";
+        if (raw.toLowerCase().includes("redirect_uri_mismatch")) {
+          reject(
+            new Error(
+              `Google OAuth redirect URI mismatch. Ensure Google Cloud OAuth client has this exact URI authorized: ${redirectUri}`,
+            ),
+          );
+          return;
+        }
+        reject(new Error("Google OAuth popup failed."));
       },
     });
 

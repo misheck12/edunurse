@@ -36,7 +36,7 @@ function hasGoogleRefreshToken(secretJson: unknown) {
 
   return Boolean(
     (typeof googleOAuth.refreshToken === "string" && googleOAuth.refreshToken.trim()) ||
-      (typeof secret.refreshToken === "string" && secret.refreshToken.trim()),
+    (typeof secret.refreshToken === "string" && secret.refreshToken.trim()),
   );
 }
 
@@ -318,7 +318,7 @@ const OpsConnectorsPage: React.FC = () => {
     setGoogleDriveBrowseError(null);
     setGoogleDriveConnecting(true);
     try {
-      const redirectUri = window.location.origin;
+      const redirectUri = import.meta.env.VITE_GOOGLE_OAUTH_REDIRECT_URI ?? window.location.origin;
       const oauthCode = await requestGoogleDriveAuthorizationCode({
         clientId: import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID ?? "",
         scopes: ["https://www.googleapis.com/auth/drive.readonly"],
@@ -326,7 +326,7 @@ const OpsConnectorsPage: React.FC = () => {
       });
       const session = await exchangeAdminGoogleDriveOauthCode({
         authorizationCode: oauthCode.authorizationCode,
-        redirectUri,
+        redirectUri: oauthCode.redirectUri,
       });
       setGoogleDriveOauthSessionId(session.oauthSessionId);
       setNotice("Google Drive connected. Browse folders/files to continue.");
@@ -474,13 +474,13 @@ const OpsConnectorsPage: React.FC = () => {
           configJson:
             createConnectorForm.connectorType === "postgres"
               ? {
-                  ...baseConfig,
-                  connectionString: dbConnectionString.trim(),
-                }
+                ...baseConfig,
+                connectionString: dbConnectionString.trim(),
+              }
               : {
-                  ...baseConfig,
-                  connectionUri: dbConnectionString.trim(),
-                },
+                ...baseConfig,
+                connectionUri: dbConnectionString.trim(),
+              },
           secretJson: {},
         });
         createdConnectorIds.push(created.id);
@@ -675,11 +675,10 @@ const OpsConnectorsPage: React.FC = () => {
                           : "Connect Google"}
                     </button>
                     <span
-                      className={`rounded px-2 py-1 text-[11px] font-medium ${
-                        googleDriveOauthSessionId
+                      className={`rounded px-2 py-1 text-[11px] font-medium ${googleDriveOauthSessionId
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-slate-100 text-slate-600"
-                      }`}
+                        }`}
                     >
                       {googleDriveOauthSessionId ? "Connected" : "Not connected"}
                     </span>

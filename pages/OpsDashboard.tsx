@@ -861,7 +861,7 @@ const OpsDashboard: React.FC = () => {
     setGoogleDriveBrowseError(null);
     setGoogleDriveConnecting(true);
     try {
-      const redirectUri = window.location.origin;
+      const redirectUri = import.meta.env.VITE_GOOGLE_OAUTH_REDIRECT_URI ?? window.location.origin;
       const oauthCode = await requestGoogleDriveAuthorizationCode({
         clientId: import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID ?? "",
         scopes: ["https://www.googleapis.com/auth/drive.readonly"],
@@ -869,7 +869,7 @@ const OpsDashboard: React.FC = () => {
       });
       const session = await exchangeAdminGoogleDriveOauthCode({
         authorizationCode: oauthCode.authorizationCode,
-        redirectUri,
+        redirectUri: oauthCode.redirectUri,
       });
       setGoogleDriveOauthSessionId(session.oauthSessionId);
       setNotice("Google Drive connected. Now browse folders/files.");
@@ -1035,11 +1035,10 @@ const OpsDashboard: React.FC = () => {
 
       {notice && (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            isAdminAccessError
+          className={`rounded-lg border px-4 py-3 text-sm ${isAdminAccessError
               ? "bg-amber-50 border-amber-200 text-amber-700"
               : "bg-blue-50 border-blue-200 text-blue-700"
-          }`}
+            }`}
         >
           {notice}
         </div>
@@ -1237,11 +1236,10 @@ const OpsDashboard: React.FC = () => {
                       {googleDriveConnecting ? "Connecting..." : googleDriveOauthSessionId ? "Reconnect Google" : "Connect Google"}
                     </button>
                     <span
-                      className={`text-[11px] font-medium px-2 py-1 rounded ${
-                        googleDriveOauthSessionId
+                      className={`text-[11px] font-medium px-2 py-1 rounded ${googleDriveOauthSessionId
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-slate-100 text-slate-600"
-                      }`}
+                        }`}
                     >
                       {googleDriveOauthSessionId ? "Connected" : "Not connected"}
                     </span>
@@ -1686,12 +1684,12 @@ const OpsDashboard: React.FC = () => {
               onChange={(event) =>
                 setGenerationStatusFilter(
                   event.target.value as
-                    | "all"
-                    | "queued"
-                    | "running"
-                    | "succeeded"
-                    | "failed"
-                    | "blocked",
+                  | "all"
+                  | "queued"
+                  | "running"
+                  | "succeeded"
+                  | "failed"
+                  | "blocked",
                 )
               }
               className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white"
@@ -2211,10 +2209,10 @@ const OpsDashboard: React.FC = () => {
                   onChange={(event) =>
                     setNewTransactionStatus(
                       event.target.value as
-                        | "pending"
-                        | "succeeded"
-                        | "failed"
-                        | "canceled",
+                      | "pending"
+                      | "succeeded"
+                      | "failed"
+                      | "canceled",
                     )
                   }
                   className="border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white"
