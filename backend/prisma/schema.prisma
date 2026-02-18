@@ -129,9 +129,11 @@ model User {
   passwordHash      String            @map("password_hash")
   fullName          String?           @map("full_name")
   phoneNumber       String?           @map("phone_number")
+  nrc               String?           @unique
   school            String?
   studentNumber     String?           @map("student_number")
   information       String?
+  profileCompleted  Boolean           @default(false) @map("profile_completed")
   role              UserRole          @default(educator)
   isActive          Boolean           @default(true) @map("is_active")
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)

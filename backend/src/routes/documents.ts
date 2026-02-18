@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireUserId } from "../services/auth-helpers.js";
 import { DOCUMENT_TYPES, fromDocumentTypeDb, toDocumentTypeDb } from "../services/constants.js";
+import { requireCompleteProfile } from "../services/profile-completion.js";
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -43,6 +44,11 @@ const updateSectionSchema = z.object({
 });
 
 const documentRoutes: FastifyPluginAsync = async (app) => {
+  // Add profile completion check for all document routes
+  app.addHook("preHandler", async (request, reply) => {
+    await requireCompleteProfile(request, reply, app.prisma);
+  });
+
   app.get("/", async (request) => {
     const userId = requireUserId(request);
     const query = paginationSchema.parse(request.query);

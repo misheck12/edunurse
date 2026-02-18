@@ -15,9 +15,10 @@ const clientSignupSchema = z.object({
   password: z.string().min(8),
   fullName: z.string().min(2),
   phoneNumber: z.string().min(8),
+  nrc: z.string().regex(/^\d{6}\/\d{2}\/\d{1}$/, "NRC must be in format: 123456/12/1"),
   school: z.string().min(2),
   studentNumber: z.string().min(2),
-  information: z.string().min(2),
+  information: z.string().optional(),
 });
 
 const clientSigninSchema = z.object({
@@ -30,9 +31,11 @@ const authUserSelect = {
   email: true,
   fullName: true,
   phoneNumber: true,
+  nrc: true,
   school: true,
   studentNumber: true,
   information: true,
+  profileCompleted: true,
   role: true,
   isActive: true,
   createdAt: true,
@@ -94,14 +97,28 @@ const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/client/signup", async (request, reply) => {
     const body = clientSignupSchema.parse(request.body);
     const email = body.email.trim().toLowerCase();
+    const nrc = body.nrc.trim().toUpperCase();
 
-    const existing = await app.prisma.user.findUnique({
+    // Check for existing email
+    const existingEmail = await app.prisma.user.findUnique({
       where: { email },
       select: { id: true },
     });
 
-    if (existing) {
+    if (existingEmail) {
       throw app.httpErrors.conflict("An account with this email already exists.");
+    }
+
+    // Check for existing NRC
+    const existingNrc = await app.prisma.user.findUnique({
+      where: { nrc },
+      select: { id: true, email: true },
+    });
+
+    if (existingNrc) {
+      throw app.httpErrors.conflict(
+        "An account with this NRC already exists. If this is your account, please sign in instead."
+      );
     }
 
     const createdUser = await app.prisma.user.create({
@@ -110,9 +127,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         passwordHash: await hashPassword(body.password),
         fullName: body.fullName.trim(),
         phoneNumber: body.phoneNumber.trim(),
+        nrc,
         school: body.school.trim(),
         studentNumber: body.studentNumber.trim(),
-        information: body.information.trim(),
+        information: body.information?.trim() || "",
+        profileCompleted: true, // All required fields provided during signup
         role: "educator",
         isActive: true,
       },

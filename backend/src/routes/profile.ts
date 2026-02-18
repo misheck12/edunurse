@@ -10,6 +10,7 @@ const updateProfileSchema = z.object({
   fullName: z.string().min(1).max(100).optional(),
   email: z.string().email().optional(),
   phoneNumber: z.string().min(10).max(20).optional(),
+  nrc: z.string().regex(/^\d{6}\/\d{2}\/\d{1}$/, "NRC must be in format: 123456/12/1").optional(),
   school: z.string().max(200).optional(),
   studentNumber: z.string().max(50).optional(),
   information: z.string().max(1000).optional(),
@@ -93,9 +94,11 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         email: true,
         fullName: true,
         phoneNumber: true,
+        nrc: true,
         school: true,
         studentNumber: true,
         information: true,
+        profileCompleted: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -197,6 +200,21 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    // Check if NRC is being changed and if it's already taken
+    if (body.nrc) {
+      const nrcUpper = body.nrc.trim().toUpperCase();
+      const existingNrc = await app.prisma.user.findFirst({
+        where: {
+          nrc: nrcUpper,
+          id: { not: userId },
+        },
+      });
+
+      if (existingNrc) {
+        throw app.httpErrors.conflict("This NRC is already registered to another account");
+      }
+    }
+
     // Get current preferences
     const currentUser = await app.prisma.user.findUnique({
       where: { id: userId },
@@ -215,9 +233,21 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     if (body.fullName !== undefined) updateData.fullName = body.fullName;
     if (body.email !== undefined) updateData.email = body.email;
     if (body.phoneNumber !== undefined) updateData.phoneNumber = body.phoneNumber;
+    if (body.nrc !== undefined) updateData.nrc = body.nrc.trim().toUpperCase();
     if (body.school !== undefined) updateData.school = body.school;
     if (body.studentNumber !== undefined) updateData.studentNumber = body.studentNumber;
     if (body.information !== undefined) updateData.information = body.information;
+
+    // Check if profile is now complete
+    const updatedUser = { ...currentUser, ...updateData };
+    const isComplete = !!(
+      updatedUser.fullName &&
+      updatedUser.phoneNumber &&
+      updatedUser.nrc &&
+      updatedUser.school &&
+      updatedUser.studentNumber
+    );
+    updateData.profileCompleted = isComplete;
 
     if (Object.keys(updateData).length > 0) {
       await app.prisma.user.update({
