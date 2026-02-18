@@ -1,0 +1,228 @@
+{
+  "title": "Comprehensive Lesson Plan Test",
+  "programme": "Diploma in Nursing",
+  "year": "Year 2",
+  "topic": "Postpartum Care and Maternal Health",
+  "documentType": "lesson_plan",
+  "contentJson": {
+    "metadata": {
+      "type": "lesson_plan",
+      "curriculumContext": {
+        "course": "Integrated Reproductive Health II",
+        "programmeLevel": "Diploma in Nursing - Year 2 Semester 2",
+        "subtopic": "Immediate Postpartum Period",
+        "minorTopic": "Physical and Emotional Changes"
+      }
+    },
+    "sections": [
+      {
+        "id": "lesson_metadata",
+        "title": "Lesson Metadata",
+        "type": "metadata",
+        "content": [
+          { "field": "NAME OF STUDENT", "value": "Jane Doe" },
+          { "field": "INDEX NUMBER", "value": "2024/NUR/001" },
+          { "field": "COURSE NAME", "value": "Integrated Reproductive Health II" },
+          { "field": "PROGRAMME", "value": "Diploma in Nursing - Year 2" },
+          { "field": "TOPIC", "value": "Postpartum Care" },
+          { "field": "DATE", "value": "15th February 2026" },
+          { "field": "VENUE", "value": "Lecture Hall A" },
+          { "field": "TIME", "value": "09:00 - 11:00" },
+          { "field": "DURATION", "value": "120 minutes" },
+          { "field": "NUMBER OF STUDENTS", "value": "45" },
+          { "field": "METHOD OF INSTRUCTION", "value": "Lecture, Discussion, Case Study" },
+          { "field": "MEDIA", "value": "PowerPoint, Handouts, Videos" },
+          { "field": "NAME OF SUPERVISOR", "value": "Dr. Sarah Mwansa" },
+          { "field": "SIGNATURE", "value": "" }
+        ]
+      },
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "type": "text",
+        "content": "The postpartum period, also known as the puerperium, is a critical time for both mother and newborn. This lesson will explore the physiological and psychological changes that occur during the immediate postpartum period (first 24 hours after delivery) and the nursing interventions required to ensure optimal maternal health outcomes.\n\nUnderstanding postpartum care is essential for preventing complications such as postpartum hemorrhage, infection, and maternal mental health issues.",
+        "citations": []
+      },
+      {
+        "id": "objectives",
+        "title": "General Objectives",
+        "type": "list",
+        "content": [
+          "Describe the physiological changes that occur during the immediate postpartum period",
+          "Identify signs and symptoms of postpartum complications",
+          "Demonstrate appropriate nursing assessments for postpartum mothers",
+          "Explain the importance of early bonding and breastfeeding initiation",
+          "Discuss strategies for preventing postpartum hemorrhage"
+        ],
+        "citations": []
+      },
+      {
+        "id": "outcomes",
+        "title": "Learning Outcomes",
+        "type": "list",
+        "content": [
+          "Perform a comprehensive postpartum assessment including vital signs, fundal height, and lochia evaluation",
+          "Recognize early warning signs of postpartum complications",
+          "Provide evidence-based education to postpartum mothers regarding self-care",
+          "Support mothers in initiating and maintaining breastfeeding",
+          "Document postpartum care accurately in patient records"
+        ],
+        "citations": []
+      },
+      {
+        "id": "key_definitions",
+        "title": "Key Definitions and Descriptions",
+        "type": "list",
+        "content": [
+          { "text": "**Puerperium**: The 6-week period following childbirth during which the mother's reproductive system returns to its non-pregnant state" },
+          { "text": "**Involution**: The process by which the uterus returns to its pre-pregnancy size and position" },
+          { "text": "**Lochia**: Vaginal discharge following childbirth, consisting of blood, mucus, and uterine tissue" },
+          { "text": "**Fundus**: The upper portion of the uterus, assessed to monitor uterine involution" },
+          { "text": "**Postpartum Hemorrhage (PPH)**: Blood loss exceeding 500ml after vaginal delivery or 1000ml after cesarean section" }
+        ],
+        "citations": []
+      },
+      {
+        "id": "lesson_presentation",
+        "title": "Lesson Presentation",
+        "type": "table",
+        "content": [
+          {
+            "time": "10 min",
+            "specificObjective": "Introduce the topic and establish learning context",
+            "content": "Overview of postpartum period and its significance in maternal health",
+            "educatorActivities": "Present statistics on maternal mortality related to postpartum complications. Use case study to illustrate importance.",
+            "learnerActivities": "Listen actively, take notes, share prior knowledge or experiences",
+            "materials": "PowerPoint slides, case study handout",
+            "assessment": "Ask students to identify key risk factors from case study"
+          },
+          {
+            "time": "20 min",
+            "specificObjective": "Describe physiological changes in immediate postpartum period",
+            "content": "Uterine involution, cardiovascular changes, hormonal shifts, lochia progression",
+            "educatorActivities": "Explain physiological processes using diagrams. Demonstrate fundal height assessment on model.",
+            "learnerActivities": "Observe demonstration, ask clarifying questions, practice on models in pairs",
+            "materials": "Anatomical models, diagrams, demonstration supplies",
+            "assessment": "Students demonstrate correct fundal palpation technique"
+          },
+          {
+            "time": "25 min",
+            "specificObjective": "Identify signs and symptoms of postpartum complications",
+            "content": "Postpartum hemorrhage, infection, thromboembolism, hypertensive disorders",
+            "educatorActivities": "Present clinical scenarios. Facilitate group discussion on warning signs. Show video of emergency response.",
+            "learnerActivities": "Participate in group discussion, analyze scenarios, identify red flags",
+            "materials": "Clinical scenario cards, video clips, emergency protocol charts",
+            "assessment": "Groups present their analysis of assigned scenarios"
+          },
+          {
+            "time": "20 min",
+            "specificObjective": "Perform comprehensive postpartum assessment",
+            "content": "Vital signs, fundal assessment, lochia evaluation, perineal inspection, emotional status",
+            "educatorActivities": "Demonstrate complete postpartum assessment. Guide students through assessment checklist.",
+            "learnerActivities": "Practice assessment skills on simulation mannequin, complete assessment checklist",
+            "materials": "Simulation mannequin, assessment forms, vital signs equipment",
+            "assessment": "Observe student performance using checklist, provide feedback"
+          },
+          {
+            "time": "15 min",
+            "specificObjective": "Explain importance of early bonding and breastfeeding",
+            "content": "Skin-to-skin contact, breastfeeding initiation, benefits for mother and baby",
+            "educatorActivities": "Present evidence on benefits of early bonding. Show video of proper latch technique.",
+            "learnerActivities": "Watch video, discuss cultural practices, role-play patient education",
+            "materials": "Video on breastfeeding, breastfeeding models, educational pamphlets",
+            "assessment": "Students demonstrate teaching points for breastfeeding initiation"
+          },
+          {
+            "time": "20 min",
+            "specificObjective": "Discuss prevention strategies for postpartum hemorrhage",
+            "content": "Active management of third stage, uterotonic medications, monitoring protocols",
+            "educatorActivities": "Explain AMTSL protocol. Discuss medication administration and monitoring.",
+            "learnerActivities": "Take notes, ask questions, review medication cards",
+            "materials": "AMTSL protocol guidelines, medication reference cards",
+            "assessment": "Quiz on AMTSL steps and medication dosages"
+          },
+          {
+            "time": "10 min",
+            "specificObjective": "Summarize key learning points and address questions",
+            "content": "Review of main concepts, clarification of doubts, assignment introduction",
+            "educatorActivities": "Summarize key points, answer questions, explain assignment requirements",
+            "learnerActivities": "Ask final questions, note assignment details, complete evaluation form",
+            "materials": "Summary handout, assignment sheet, evaluation forms",
+            "assessment": "Exit ticket: List 3 key postpartum assessments"
+          }
+        ],
+        "citations": []
+      },
+      {
+        "id": "assignment",
+        "title": "Assignment",
+        "type": "list",
+        "content": [
+          "The normal duration of the puerperium is 6 weeks",
+          "Lochia rubra is the first type of lochia and appears bright red",
+          "The fundus should be at the level of the umbilicus immediately after delivery",
+          "Postpartum hemorrhage is defined as blood loss exceeding 500ml after vaginal delivery",
+          "Breastfeeding should be initiated within the first hour after birth when possible",
+          "The uterus involutes at a rate of approximately 1 cm per day",
+          "Postpartum blues typically occur within the first 2 weeks and resolve spontaneously",
+          "Active management of the third stage of labor helps prevent postpartum hemorrhage",
+          "Vital signs should be monitored every 15 minutes for the first hour postpartum",
+          "Perineal care should include warm water cleansing from front to back"
+        ],
+        "citations": []
+      },
+      {
+        "id": "facilitator_notes",
+        "title": "Facilitator Notes",
+        "type": "list",
+        "content": [
+          "Ensure simulation mannequins are set up before class begins",
+          "Prepare case study materials and distribute at appropriate time",
+          "Have emergency protocol charts readily available for reference",
+          "Monitor time carefully to ensure all activities are completed",
+          "Be sensitive to students who may have personal experiences with childbirth",
+          "Encourage questions throughout the session, not just at the end",
+          "Have backup video clips ready in case of technical difficulties"
+        ],
+        "citations": []
+      },
+      {
+        "id": "evaluation",
+        "title": "Evaluation / Summary",
+        "type": "list",
+        "content": [
+          "Students will complete a practical assessment demonstrating postpartum assessment skills",
+          "Written quiz on postpartum complications and nursing interventions",
+          "Group presentation on a postpartum case study analysis",
+          "Self-reflection journal on learning experience and areas for improvement",
+          "Peer evaluation of assessment technique during practice sessions"
+        ],
+        "citations": []
+      },
+      {
+        "id": "references",
+        "title": "References",
+        "type": "list",
+        "content": [
+          "World Health Organization (2013). WHO recommendations for the prevention and treatment of postpartum haemorrhage. Geneva: WHO Press.",
+          "Cunningham, F.G., et al. (2022). Williams Obstetrics (26th ed.). New York: McGraw-Hill Education.",
+          "Zambia Ministry of Health (2020). National Guidelines for Maternal and Neonatal Care. Lusaka: MOH.",
+          "Royal College of Obstetricians and Gynaecologists (2016). Prevention and Management of Postpartum Haemorrhage. Green-top Guideline No. 52.",
+          "Lusaka School of Nursing (2022). Integrated Reproductive Health II Module Curriculum."
+        ],
+        "citations": [
+          {
+            "sourceName": "WHO Postpartum Care Guidelines",
+            "page": 15,
+            "quoteSnippet": "Early assessment and intervention are critical for preventing maternal mortality"
+          },
+          {
+            "sourceName": "Zambia MOH Maternal Care Standards",
+            "page": 42,
+            "quoteSnippet": "All postpartum mothers should receive comprehensive assessment within 24 hours"
+          }
+        ]
+      }
+    ]
+  }
+}

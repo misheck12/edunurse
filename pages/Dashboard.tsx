@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, BookOpen, Activity, ClipboardList, Thermometer, Calendar, FileText, Download, Sparkles } from 'lucide-react';
 import { RECENT_DOCS } from '../constants';
+import { UpgradeBanner } from '../src/components/UpgradeBanner';
+import { PaymentModal } from '../src/components/PaymentModal';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const ActionCard = ({ icon: Icon, title, desc, color }: { icon: any, title: string, desc: string, color: string }) => (
     <div 
@@ -20,17 +23,24 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 md:p-10">
+      {/* Upgrade Banner */}
+      <UpgradeBanner
+        onUpgradeClick={() => setShowPaymentModal(true)}
+        variant="dashboard"
+        dismissible={false}
+      />
+
       {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+      <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Educator Workspace</h1>
           <p className="text-slate-500">Generate structured, curriculum-grounded documentation for your nursing programme.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex w-full items-center gap-4 md:w-auto">
           <button 
             onClick={() => navigate('/create')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-lg shadow-blue-500/30 flex items-center gap-2 font-medium transition-all transform active:scale-95"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-all active:scale-95 hover:bg-blue-700 md:w-auto"
           >
             <Sparkles size={20} />
             Generate New Document
@@ -105,6 +115,16 @@ const Dashboard: React.FC = () => {
           </table>
         </div>
       </section>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={() => {
+          setShowPaymentModal(false);
+          window.location.reload();
+        }}
+      />
     </div>
   );
 };

@@ -1,0 +1,271 @@
+{
+  "title": "Multi-Page Lesson Plan Test",
+  "programme": "Diploma in Nursing",
+  "year": "Year 3",
+  "topic": "Comprehensive Medical-Surgical Nursing",
+  "documentType": "lesson_plan",
+  "contentJson": {
+    "metadata": {
+      "type": "lesson_plan"
+    },
+    "sections": [
+      {
+        "id": "lesson_metadata",
+        "title": "Lesson Metadata",
+        "type": "metadata",
+        "content": [
+          { "field": "COURSE NAME", "value": "Medical-Surgical Nursing III" },
+          { "field": "TOPIC", "value": "Comprehensive Patient Care" },
+          { "field": "DURATION", "value": "240 minutes" }
+        ]
+      },
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "type": "text",
+        "content": "This comprehensive lesson covers multiple aspects of medical-surgical nursing care."
+      },
+      {
+        "id": "objectives",
+        "title": "General Objectives",
+        "type": "list",
+        "content": [
+          "Demonstrate comprehensive patient assessment skills",
+          "Apply evidence-based nursing interventions"
+        ]
+      },
+      {
+        "id": "lesson_presentation",
+        "title": "Lesson Presentation",
+        "type": "table",
+        "content": [
+          {
+            "time": "5 min",
+            "specificObjective": "Introduction to comprehensive care",
+            "content": "Overview of holistic patient assessment and care planning",
+            "educatorActivities": "Present framework for comprehensive care. Discuss importance of systematic approach.",
+            "learnerActivities": "Listen actively, review handout, ask clarifying questions",
+            "materials": "PowerPoint slides, comprehensive care framework handout",
+            "assessment": "Q&A on framework components"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Vital signs assessment",
+            "content": "Accurate measurement and interpretation of vital signs including temperature, pulse, respiration, blood pressure",
+            "educatorActivities": "Demonstrate proper technique for each vital sign. Explain normal ranges and variations.",
+            "learnerActivities": "Observe demonstration, practice on partners, record findings",
+            "materials": "Thermometers, stethoscopes, BP cuffs, pulse oximeters",
+            "assessment": "Practical demonstration of vital signs measurement"
+          },
+          {
+            "time": "10 min",
+            "specificObjective": "Head-to-toe assessment",
+            "content": "Systematic physical examination from head to toe including inspection, palpation, percussion, auscultation",
+            "educatorActivities": "Demonstrate systematic approach. Guide students through each body system.",
+            "learnerActivities": "Practice assessment techniques on simulation mannequin",
+            "materials": "Simulation mannequin, assessment checklist, examination equipment",
+            "assessment": "Checklist completion and technique observation"
+          },
+          {
+            "time": "7 min",
+            "specificObjective": "Neurological assessment",
+            "content": "Level of consciousness, pupil response, motor function, sensory function, reflexes",
+            "educatorActivities": "Demonstrate Glasgow Coma Scale assessment. Show pupil examination technique.",
+            "learnerActivities": "Practice GCS scoring, assess pupil responses on partners",
+            "materials": "Penlight, reflex hammer, GCS chart",
+            "assessment": "GCS scoring accuracy check"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Cardiovascular assessment",
+            "content": "Heart sounds, peripheral pulses, capillary refill, edema assessment, jugular venous pressure",
+            "educatorActivities": "Demonstrate auscultation of heart sounds. Show peripheral pulse assessment.",
+            "learnerActivities": "Practice auscultation, locate and assess peripheral pulses",
+            "materials": "Stethoscopes, cardiovascular model, assessment forms",
+            "assessment": "Identification of normal heart sounds"
+          },
+          {
+            "time": "9 min",
+            "specificObjective": "Respiratory assessment",
+            "content": "Respiratory rate and pattern, breath sounds, oxygen saturation, chest expansion, use of accessory muscles",
+            "educatorActivities": "Demonstrate proper auscultation technique. Explain abnormal breath sounds.",
+            "learnerActivities": "Practice respiratory assessment, identify breath sound locations",
+            "materials": "Stethoscopes, pulse oximeters, respiratory model",
+            "assessment": "Breath sound identification quiz"
+          },
+          {
+            "time": "6 min",
+            "specificObjective": "Gastrointestinal assessment",
+            "content": "Bowel sounds, abdominal palpation, assessment for distension, tenderness, masses",
+            "educatorActivities": "Demonstrate proper sequence for abdominal assessment. Explain quadrant system.",
+            "learnerActivities": "Practice abdominal assessment on partners or mannequin",
+            "materials": "Abdominal assessment model, diagrams",
+            "assessment": "Proper assessment sequence demonstration"
+          },
+          {
+            "time": "7 min",
+            "specificObjective": "Genitourinary assessment",
+            "content": "Urinary output monitoring, bladder palpation, assessment for urinary retention, catheter care",
+            "educatorActivities": "Discuss urinary assessment techniques. Demonstrate catheter care.",
+            "learnerActivities": "Review urinary assessment checklist, practice catheter care on model",
+            "materials": "Catheter care supplies, urinary assessment model",
+            "assessment": "Catheter care technique observation"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Musculoskeletal assessment",
+            "content": "Range of motion, muscle strength, gait assessment, joint examination, mobility status",
+            "educatorActivities": "Demonstrate ROM assessment. Show muscle strength grading scale.",
+            "learnerActivities": "Practice ROM assessment on partners, grade muscle strength",
+            "materials": "Goniometer, muscle strength grading chart",
+            "assessment": "ROM and strength assessment accuracy"
+          },
+          {
+            "time": "6 min",
+            "specificObjective": "Integumentary assessment",
+            "content": "Skin color, temperature, moisture, turgor, lesions, wounds, pressure injury risk",
+            "educatorActivities": "Demonstrate skin assessment techniques. Explain Braden scale.",
+            "learnerActivities": "Practice skin assessment, complete Braden scale on case study",
+            "materials": "Braden scale forms, wound assessment tools",
+            "assessment": "Braden scale calculation accuracy"
+          },
+          {
+            "time": "10 min",
+            "specificObjective": "Pain assessment",
+            "content": "Pain location, intensity, quality, duration, aggravating and relieving factors, pain scales",
+            "educatorActivities": "Present various pain assessment scales. Discuss comprehensive pain assessment.",
+            "learnerActivities": "Practice using different pain scales, conduct pain assessment interview",
+            "materials": "Pain scale charts, case scenarios",
+            "assessment": "Pain assessment documentation review"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Medication administration",
+            "content": "Five rights of medication administration, safe preparation, proper documentation",
+            "educatorActivities": "Review medication safety principles. Demonstrate medication preparation.",
+            "learnerActivities": "Practice medication calculation, prepare simulated medications",
+            "materials": "Medication cards, calculation worksheets, preparation supplies",
+            "assessment": "Medication calculation quiz"
+          },
+          {
+            "time": "9 min",
+            "specificObjective": "IV therapy management",
+            "content": "IV site assessment, flow rate calculation, complications recognition, IV medication administration",
+            "educatorActivities": "Demonstrate IV site assessment. Explain flow rate calculations.",
+            "learnerActivities": "Practice IV calculations, assess IV sites on simulation arm",
+            "materials": "IV simulation arm, IV supplies, calculation tools",
+            "assessment": "IV calculation and assessment competency"
+          },
+          {
+            "time": "7 min",
+            "specificObjective": "Wound care",
+            "content": "Wound assessment, dressing selection, sterile technique, wound measurement, documentation",
+            "educatorActivities": "Demonstrate wound assessment and dressing change. Emphasize sterile technique.",
+            "learnerActivities": "Practice wound measurement, perform dressing change on model",
+            "materials": "Wound care supplies, wound models, measurement tools",
+            "assessment": "Sterile technique observation"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Infection control",
+            "content": "Hand hygiene, standard precautions, transmission-based precautions, PPE use",
+            "educatorActivities": "Demonstrate proper hand hygiene and PPE donning/doffing sequence.",
+            "learnerActivities": "Practice hand hygiene technique, don and doff PPE correctly",
+            "materials": "Hand hygiene supplies, PPE sets, UV light box",
+            "assessment": "Hand hygiene and PPE technique check"
+          },
+          {
+            "time": "10 min",
+            "specificObjective": "Patient safety",
+            "content": "Fall risk assessment, patient identification, medication safety, infection prevention",
+            "educatorActivities": "Discuss patient safety principles. Present case studies of safety incidents.",
+            "learnerActivities": "Complete fall risk assessment, analyze safety scenarios",
+            "materials": "Fall risk assessment tools, safety case studies",
+            "assessment": "Safety scenario analysis presentation"
+          },
+          {
+            "time": "9 min",
+            "specificObjective": "Documentation",
+            "content": "Accurate and timely documentation, legal considerations, electronic health records",
+            "educatorActivities": "Review documentation standards. Show examples of proper documentation.",
+            "learnerActivities": "Practice documentation using case scenarios",
+            "materials": "Documentation forms, case scenarios, EHR simulation",
+            "assessment": "Documentation completeness and accuracy review"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Patient education",
+            "content": "Assessment of learning needs, teaching strategies, evaluation of understanding",
+            "educatorActivities": "Discuss principles of adult learning. Demonstrate teach-back method.",
+            "learnerActivities": "Develop patient education plan, practice teach-back technique",
+            "materials": "Patient education materials, teaching plan templates",
+            "assessment": "Teaching plan evaluation"
+          },
+          {
+            "time": "7 min",
+            "specificObjective": "Discharge planning",
+            "content": "Assessment of discharge needs, coordination of care, patient and family education",
+            "educatorActivities": "Present discharge planning process. Discuss multidisciplinary collaboration.",
+            "learnerActivities": "Develop discharge plan for case study patient",
+            "materials": "Discharge planning forms, case studies",
+            "assessment": "Discharge plan completeness check"
+          },
+          {
+            "time": "10 min",
+            "specificObjective": "Emergency response",
+            "content": "Recognition of deteriorating patient, emergency call procedures, basic life support",
+            "educatorActivities": "Review early warning signs. Demonstrate emergency response protocol.",
+            "learnerActivities": "Practice emergency call procedure, review BLS algorithm",
+            "materials": "Emergency response cards, BLS algorithm posters",
+            "assessment": "Emergency scenario response simulation"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Ethical considerations",
+            "content": "Patient autonomy, informed consent, confidentiality, ethical decision-making",
+            "educatorActivities": "Present ethical principles. Facilitate discussion of ethical dilemmas.",
+            "learnerActivities": "Analyze ethical case studies, participate in group discussion",
+            "materials": "Ethical case studies, ethical principles handout",
+            "assessment": "Ethical analysis presentation"
+          },
+          {
+            "time": "9 min",
+            "specificObjective": "Cultural competence",
+            "content": "Cultural assessment, culturally sensitive care, working with interpreters",
+            "educatorActivities": "Discuss cultural considerations in nursing care. Share cultural scenarios.",
+            "learnerActivities": "Complete cultural assessment tool, role-play culturally sensitive interactions",
+            "materials": "Cultural assessment tools, scenario cards",
+            "assessment": "Cultural competence self-reflection"
+          },
+          {
+            "time": "7 min",
+            "specificObjective": "Interdisciplinary collaboration",
+            "content": "Team communication, role clarification, collaborative care planning",
+            "educatorActivities": "Explain roles of healthcare team members. Demonstrate SBAR communication.",
+            "learnerActivities": "Practice SBAR communication, participate in team simulation",
+            "materials": "SBAR templates, team role cards",
+            "assessment": "SBAR communication evaluation"
+          },
+          {
+            "time": "8 min",
+            "specificObjective": "Quality improvement",
+            "content": "Quality indicators, incident reporting, continuous improvement processes",
+            "educatorActivities": "Present quality improvement framework. Discuss incident reporting process.",
+            "learnerActivities": "Analyze quality data, complete incident report for scenario",
+            "materials": "Quality indicator data, incident report forms",
+            "assessment": "Incident report completion accuracy"
+          },
+          {
+            "time": "10 min",
+            "specificObjective": "Summary and evaluation",
+            "content": "Review of key concepts, clarification of questions, evaluation of learning",
+            "educatorActivities": "Summarize main points. Answer questions. Administer evaluation.",
+            "learnerActivities": "Ask final questions, complete evaluation form, reflect on learning",
+            "materials": "Summary handout, evaluation forms",
+            "assessment": "Comprehensive written assessment"
+          }
+        ]
+      }
+    ]
+  }
+}

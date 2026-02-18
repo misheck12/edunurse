@@ -1,0 +1,663 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  educator
+  admin
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+}
+
+enum DocumentType {
+  lesson_plan
+  osce_station
+  clinical_plan
+  assessment_tool
+  scheme_of_work
+}
+
+enum DocumentStatus {
+  draft
+  final
+}
+
+enum SourceType {
+  syllabus
+  standards
+  guideline
+}
+
+enum SourceStatus {
+  uploaded
+  parsed
+  indexed
+  active
+  deprecated
+  failed
+}
+
+enum GenerationRunType {
+  create
+  regenerate_section
+  expand
+  simplify
+}
+
+enum GenerationRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  blocked
+}
+
+enum Severity {
+  info
+  warning
+  blocking
+}
+
+enum JobType {
+  ingestion
+  embedding
+  export
+  generation
+}
+
+enum JobStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
+enum ExportFormat {
+  pdf
+  docx
+  pptx
+}
+
+enum TransactionType {
+  charge
+  refund
+  adjustment
+}
+
+enum TransactionStatus {
+  pending
+  succeeded
+  failed
+  canceled
+}
+
+enum ConnectorType {
+  google_drive
+  web_url
+  postgres
+  mysql
+  manual_upload
+}
+
+enum ConnectorStatus {
+  active
+  paused
+  error
+}
+
+enum ConnectorRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  partial
+}
+
+model User {
+  id                String            @id @default(uuid()) @db.Uuid
+  email             String            @unique
+  passwordHash      String            @map("password_hash")
+  fullName          String?           @map("full_name")
+  phoneNumber       String?           @map("phone_number")
+  school            String?
+  studentNumber     String?           @map("student_number")
+  information       String?
+  role              UserRole          @default(educator)
+  isActive          Boolean           @default(true) @map("is_active")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  preferences       UserPreference?
+  subscriptions     Subscription[]
+  templates         Template[]
+  documents         Document[]
+  documentVersions  DocumentVersion[] @relation("DocumentVersionAuthor")
+  uploadedSources   CurriculumSource[] @relation("UploadedByUser")
+  connectorsCreated Connector[]       @relation("ConnectorCreatedBy")
+  connectorRunsInitiated ConnectorRun[] @relation("ConnectorRunInitiatedBy")
+  generationRuns    GenerationRun[]
+  exportJobs        ExportJob[]
+  transactions      Transaction[]
+
+  @@map("users")
+}
+
+model UserPreference {
+  userId             String   @id @map("user_id") @db.Uuid
+  defaultProgramme   String?  @map("default_programme")
+  defaultYear        String?  @map("default_year")
+  defaultDocumentType String? @map("default_document_type")
+  exportDefaults     Json     @default("{}") @map("export_defaults")
+  uiPreferences      Json     @default("{}") @map("ui_preferences")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Plan {
+  id                String         @id @default(uuid()) @db.Uuid
+  code              String         @unique
+  name              String
+  monthlyPriceCents Int            @map("monthly_price_cents")
+  limitsJson        Json           @map("limits_json")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  subscriptions     Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                     String             @id @default(uuid()) @db.Uuid
+  userId                 String             @map("user_id") @db.Uuid
+  planId                 String             @map("plan_id") @db.Uuid
+  provider               String
+  providerSubscriptionId String?            @unique @map("provider_subscription_id")
+  status                 SubscriptionStatus
+  currentPeriodStart     DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd       DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   Plan               @relation(fields: [planId], references: [id])
+  transactions           Transaction[]
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+model Transaction {
+  id                    String            @id @default(uuid()) @db.Uuid
+  userId                String            @map("user_id") @db.Uuid
+  subscriptionId        String?           @map("subscription_id") @db.Uuid
+  provider              String
+  externalTransactionId String?           @unique @map("external_transaction_id")
+  transactionType       TransactionType   @map("transaction_type")
+  status                TransactionStatus
+  amountCents           Int               @map("amount_cents")
+  currency              String            @default("USD")
+  metadataJson          Json              @default("{}") @map("metadata_json")
+  errorMessage          String?           @map("error_message")
+  processedAt           DateTime?         @map("processed_at") @db.Timestamptz(6)
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription          Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([subscriptionId, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("transactions")
+}
+
+model Template {
+  id                    String       @id @default(uuid()) @db.Uuid
+  ownerUserId           String?      @map("owner_user_id") @db.Uuid
+  name                  String
+  documentType          DocumentType @map("document_type")
+  templateSchemaVersion Int          @default(1) @map("template_schema_version")
+  templateJson          Json         @map("template_json")
+  isBuiltin             Boolean      @default(false) @map("is_builtin")
+  isActive              Boolean      @default(true) @map("is_active")
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  owner                 User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  documents             Document[]
+
+  @@index([ownerUserId, documentType])
+  @@map("templates")
+}
+
+model Document {
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @map("user_id") @db.Uuid
+  title              String
+  documentType       DocumentType      @map("document_type")
+  programme          String
+  year               String?
+  course             String?
+  topic              String
+  durationMinutes    Int?              @map("duration_minutes")
+  curriculumVersionId String?          @map("curriculum_version_id") @db.Uuid
+  templateId         String?           @map("template_id") @db.Uuid
+  status             DocumentStatus    @default(draft)
+  latestVersionNum   Int               @default(1) @map("latest_version_num")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  curriculumVersion  CurriculumVersion? @relation(fields: [curriculumVersionId], references: [id], onDelete: SetNull)
+  template           Template?         @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  versions           DocumentVersion[]
+  sections           DocumentSection[]
+  generationRuns     GenerationRun[]
+  exportJobs         ExportJob[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, documentType])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id              String      @id @default(uuid()) @db.Uuid
+  documentId      String      @map("document_id") @db.Uuid
+  versionNum      Int         @map("version_num")
+  contentJson     Json        @map("content_json")
+  changeSummary   String?     @map("change_summary")
+  createdByUserId String?     @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  document        Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy       User?       @relation("DocumentVersionAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  sections        DocumentSection[]
+  generationRuns  GenerationRun[]
+  exportJobs      ExportJob[]
+
+  @@unique([documentId, versionNum])
+  @@index([documentId, versionNum(sort: Desc)])
+  @@map("document_versions")
+}
+
+model DocumentSection {
+  id                String          @id @default(uuid()) @db.Uuid
+  documentId        String          @map("document_id") @db.Uuid
+  documentVersionId String          @map("document_version_id") @db.Uuid
+  sectionKey        String          @map("section_key")
+  title             String
+  sectionType       String          @map("section_type")
+  position          Int
+  contentJson       Json            @map("content_json")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  document          Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  citations         SectionCitation[]
+
+  @@unique([documentVersionId, sectionKey])
+  @@index([documentId, position])
+  @@map("document_sections")
+}
+
+model SectionCitation {
+  id                String          @id @default(uuid()) @db.Uuid
+  documentSectionId String          @map("document_section_id") @db.Uuid
+  curriculumChunkId String          @map("curriculum_chunk_id") @db.Uuid
+  sourceId          String          @map("source_id") @db.Uuid
+  page              Int?
+  quoteSnippet      String          @map("quote_snippet")
+  confidence        Decimal?        @db.Decimal(5, 4)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  section           DocumentSection @relation(fields: [documentSectionId], references: [id], onDelete: Cascade)
+  chunk             CurriculumChunk @relation(fields: [curriculumChunkId], references: [id], onDelete: Restrict)
+  source            CurriculumSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@index([documentSectionId])
+  @@index([sourceId])
+  @@map("section_citations")
+}
+
+model CurriculumSource {
+  id               String               @id @default(uuid()) @db.Uuid
+  name             String
+  sourceType       SourceType           @map("source_type")
+  programme        String?
+  url              String?
+  storageKey       String               @map("storage_key")
+  checksum         String               @unique
+  status           SourceStatus         @default(uploaded)
+  uploadedByUserId String?              @map("uploaded_by_user_id") @db.Uuid
+  connectorId      String?              @map("connector_id") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  uploadedBy       User?                @relation("UploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  connector        Connector?           @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  externalDocuments ExternalDocument[]  @relation("ExternalDocumentCurriculumSource")
+  chunks           CurriculumChunk[]
+  hierarchyNodes   CurriculumHierarchyNode[]
+  versions         CurriculumVersionSource[]
+  citations        SectionCitation[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("curriculum_sources")
+}
+
+model CurriculumVersion {
+  id          String                    @id @default(uuid()) @db.Uuid
+  label       String                    @unique
+  description String?
+  isActive    Boolean                   @default(false) @map("is_active")
+  activatedAt DateTime?                 @map("activated_at") @db.Timestamptz(6)
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  sources     CurriculumVersionSource[]
+  chunks      CurriculumChunk[]
+  hierarchyNodes CurriculumHierarchyNode[]
+  documents   Document[]
+  connectorsDefault Connector[] @relation("ConnectorDefaultCurriculumVersion")
+
+  @@index([isActive])
+  @@map("curriculum_versions")
+}
+
+model CurriculumVersionSource {
+  curriculumVersionId String            @map("curriculum_version_id") @db.Uuid
+  sourceId            String            @map("source_id") @db.Uuid
+  curriculumVersion   CurriculumVersion @relation(fields: [curriculumVersionId], references: [id], onDelete: Cascade)
+  source              CurriculumSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([curriculumVersionId, sourceId])
+  @@map("curriculum_version_sources")
+}
+
+model CurriculumChunk {
+  id                 String            @id @default(uuid()) @db.Uuid
+  sourceId           String            @map("source_id") @db.Uuid
+  curriculumVersionId String          @map("curriculum_version_id") @db.Uuid
+  chunkIndex         Int               @map("chunk_index")
+  text               String
+  page               Int?
+  heading            String?
+  programmeTag       String?           @map("programme_tag")
+  yearTag            String?           @map("year_tag")
+  courseCode         String?           @map("course_code")
+  competencyCode     String?           @map("competency_code")
+  metadataJson       Json              @default("{}") @map("metadata_json")
+  embedding          Unsupported("vector(1536)")?
+  tsv                Unsupported("tsvector")?
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  source             CurriculumSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  curriculumVersion  CurriculumVersion @relation(fields: [curriculumVersionId], references: [id], onDelete: Cascade)
+  citations          SectionCitation[]
+  retrievals         GenerationRunRetrieval[]
+  lineage            ChunkLineage?
+
+  @@unique([sourceId, chunkIndex])
+  @@index([curriculumVersionId, programmeTag, yearTag])
+  @@map("curriculum_chunks")
+}
+
+model CurriculumHierarchyNode {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  curriculumVersionId String                   @map("curriculum_version_id") @db.Uuid
+  sourceId           String                    @map("source_id") @db.Uuid
+  parentId           String?                   @map("parent_id") @db.Uuid
+  nodeType           String                    @map("node_type")
+  code               String?
+  title              String
+  path               String
+  depth              Int
+  sortOrder          Int                       @map("sort_order")
+  metadataJson       Json                      @default("{}") @map("metadata_json")
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  curriculumVersion  CurriculumVersion         @relation(fields: [curriculumVersionId], references: [id], onDelete: Cascade)
+  source             CurriculumSource          @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  parent             CurriculumHierarchyNode?  @relation("CurriculumHierarchyParent", fields: [parentId], references: [id], onDelete: Cascade)
+  children           CurriculumHierarchyNode[] @relation("CurriculumHierarchyParent")
+
+  @@unique([curriculumVersionId, sourceId, path])
+  @@index([curriculumVersionId, sourceId, depth, sortOrder])
+  @@index([curriculumVersionId, nodeType, title])
+  @@index([parentId])
+  @@map("curriculum_hierarchy_nodes")
+}
+
+model PromptVersion {
+  id              String          @id @default(uuid()) @db.Uuid
+  name            String
+  documentType    DocumentType    @map("document_type")
+  systemPrompt    String          @map("system_prompt")
+  developerPrompt String?         @map("developer_prompt")
+  schemaJson      Json            @map("schema_json")
+  isActive        Boolean         @default(false) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  generationRuns  GenerationRun[]
+
+  @@unique([name, documentType])
+  @@index([documentType, isActive])
+  @@map("prompt_versions")
+}
+
+model ServiceControl {
+  serviceKey      String    @id @map("service_key")
+  enabled         Boolean   @default(true)
+  reason          String?
+  updatedByUserId String?   @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([updatedByUserId])
+  @@map("service_controls")
+}
+
+model Connector {
+  id                        String            @id @default(uuid()) @db.Uuid
+  name                      String
+  connectorType             ConnectorType     @map("connector_type")
+  status                    ConnectorStatus   @default(active)
+  configJson                Json              @map("config_json")
+  secretJson                Json?             @map("secret_json")
+  defaultCurriculumVersionId String?          @map("default_curriculum_version_id") @db.Uuid
+  createdByUserId           String            @map("created_by_user_id") @db.Uuid
+  lastSyncedAt              DateTime?         @map("last_synced_at") @db.Timestamptz(6)
+  createdAt                 DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy                 User              @relation("ConnectorCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  defaultCurriculumVersion  CurriculumVersion? @relation("ConnectorDefaultCurriculumVersion", fields: [defaultCurriculumVersionId], references: [id], onDelete: SetNull)
+  runs                      ConnectorRun[]
+  externalDocuments         ExternalDocument[]
+  curriculumSources         CurriculumSource[]
+
+  @@index([connectorType, status])
+  @@index([createdByUserId, createdAt(sort: Desc)])
+  @@map("connectors")
+}
+
+model ConnectorRun {
+  id              String            @id @default(uuid()) @db.Uuid
+  connectorId     String            @map("connector_id") @db.Uuid
+  initiatedByUserId String          @map("initiated_by_user_id") @db.Uuid
+  status          ConnectorRunStatus @default(queued)
+  discoveredCount Int               @default(0) @map("discovered_count")
+  fetchedCount    Int               @default(0) @map("fetched_count")
+  indexedCount    Int               @default(0) @map("indexed_count")
+  failedCount     Int               @default(0) @map("failed_count")
+  logJson         Json?             @map("log_json")
+  errorMessage    String?           @map("error_message")
+  startedAt       DateTime?         @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime?         @map("finished_at") @db.Timestamptz(6)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  connector       Connector         @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  initiatedBy     User              @relation("ConnectorRunInitiatedBy", fields: [initiatedByUserId], references: [id], onDelete: Cascade)
+  chunkLineages   ChunkLineage[]
+
+  @@index([connectorId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("connector_runs")
+}
+
+model ExternalDocument {
+  id                String             @id @default(uuid()) @db.Uuid
+  connectorId       String             @map("connector_id") @db.Uuid
+  externalId        String             @map("external_id")
+  title             String
+  sourceUrl         String?            @map("source_url")
+  mimeType          String?            @map("mime_type")
+  owner             String?
+  accessScope       String?            @map("access_scope")
+  isActive          Boolean            @default(true) @map("is_active")
+  latestVersionId   String?            @map("latest_version_id") @db.Uuid
+  curriculumSourceId String?           @unique @map("curriculum_source_id") @db.Uuid
+  lastSeenAt        DateTime?          @map("last_seen_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  connector         Connector          @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  latestVersion     ExternalDocumentVersion? @relation("LatestExternalDocumentVersion", fields: [latestVersionId], references: [id], onDelete: SetNull)
+  curriculumSource  CurriculumSource?  @relation("ExternalDocumentCurriculumSource", fields: [curriculumSourceId], references: [id], onDelete: SetNull)
+  versions          ExternalDocumentVersion[]
+
+  @@unique([connectorId, externalId])
+  @@index([connectorId, updatedAt(sort: Desc)])
+  @@map("external_documents")
+}
+
+model ExternalDocumentVersion {
+  id                String             @id @default(uuid()) @db.Uuid
+  externalDocumentId String            @map("external_document_id") @db.Uuid
+  revisionId        String?            @map("revision_id")
+  checksum          String
+  rawText           String             @map("raw_text")
+  metadataJson      Json               @default("{}") @map("metadata_json")
+  fetchedAt         DateTime           @default(now()) @map("fetched_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  externalDocument  ExternalDocument   @relation(fields: [externalDocumentId], references: [id], onDelete: Cascade)
+  latestForDocument ExternalDocument[] @relation("LatestExternalDocumentVersion")
+  chunkLineages     ChunkLineage[]
+
+  @@unique([externalDocumentId, checksum])
+  @@index([externalDocumentId, createdAt(sort: Desc)])
+  @@map("external_document_versions")
+}
+
+model ChunkLineage {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  curriculumChunkId        String                  @unique @map("curriculum_chunk_id") @db.Uuid
+  externalDocumentVersionId String                 @map("external_document_version_id") @db.Uuid
+  connectorRunId           String                  @map("connector_run_id") @db.Uuid
+  externalChunkIndex       Int                     @map("external_chunk_index")
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  curriculumChunk          CurriculumChunk         @relation(fields: [curriculumChunkId], references: [id], onDelete: Cascade)
+  externalDocumentVersion  ExternalDocumentVersion @relation(fields: [externalDocumentVersionId], references: [id], onDelete: Cascade)
+  connectorRun             ConnectorRun            @relation(fields: [connectorRunId], references: [id], onDelete: Cascade)
+
+  @@index([externalDocumentVersionId])
+  @@index([connectorRunId])
+  @@map("chunk_lineages")
+}
+
+model GenerationRun {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  userId                   String                 @map("user_id") @db.Uuid
+  documentId               String?                @map("document_id") @db.Uuid
+  documentVersionId        String?                @map("document_version_id") @db.Uuid
+  runType                  GenerationRunType      @map("run_type")
+  status                   GenerationRunStatus
+  inputJson                Json                   @map("input_json")
+  strictCurriculumAlignment Boolean               @default(true) @map("strict_curriculum_alignment")
+  modelProvider            String                 @map("model_provider")
+  modelName                String                 @map("model_name")
+  promptVersionId          String?                @map("prompt_version_id") @db.Uuid
+  outputJson               Json?                  @map("output_json")
+  outputChecksum           String?                @map("output_checksum")
+  latencyMs                Int?                   @map("latency_ms")
+  errorMessage             String?                @map("error_message")
+  createdAt                DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt              DateTime?              @map("completed_at") @db.Timestamptz(6)
+  user                     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document                 Document?              @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion          DocumentVersion?       @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  promptVersion            PromptVersion?         @relation(fields: [promptVersionId], references: [id], onDelete: SetNull)
+  retrievals               GenerationRunRetrieval[]
+  flags                    GenerationFlag[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([documentId])
+  @@map("generation_runs")
+}
+
+model GenerationRunRetrieval {
+  id               String        @id @default(uuid()) @db.Uuid
+  generationRunId  String        @map("generation_run_id") @db.Uuid
+  curriculumChunkId String       @map("curriculum_chunk_id") @db.Uuid
+  rank             Int
+  vectorScore      Decimal?      @map("vector_score") @db.Decimal(8, 6)
+  keywordScore     Decimal?      @map("keyword_score") @db.Decimal(8, 6)
+  rerankScore      Decimal?      @map("rerank_score") @db.Decimal(8, 6)
+  selected         Boolean       @default(true)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  generationRun    GenerationRun @relation(fields: [generationRunId], references: [id], onDelete: Cascade)
+  curriculumChunk  CurriculumChunk @relation(fields: [curriculumChunkId], references: [id], onDelete: Restrict)
+
+  @@unique([generationRunId, curriculumChunkId])
+  @@index([generationRunId, rank])
+  @@map("generation_run_retrievals")
+}
+
+model GenerationFlag {
+  id              String        @id @default(uuid()) @db.Uuid
+  generationRunId String        @map("generation_run_id") @db.Uuid
+  flagType        String        @map("flag_type")
+  severity        Severity
+  detailsJson     Json          @map("details_json")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  generationRun   GenerationRun @relation(fields: [generationRunId], references: [id], onDelete: Cascade)
+
+  @@index([generationRunId, severity])
+  @@map("generation_flags")
+}
+
+model Job {
+  id           String    @id @default(uuid()) @db.Uuid
+  jobType      JobType   @map("job_type")
+  status       JobStatus
+  payloadJson  Json      @map("payload_json")
+  attemptCount Int       @default(0) @map("attempt_count")
+  maxAttempts  Int       @default(5) @map("max_attempts")
+  runAt        DateTime  @default(now()) @map("run_at") @db.Timestamptz(6)
+  lockedAt     DateTime? @map("locked_at") @db.Timestamptz(6)
+  finishedAt   DateTime? @map("finished_at") @db.Timestamptz(6)
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, runAt])
+  @@map("jobs")
+}
+
+model ExportJob {
+  id                 String         @id @default(uuid()) @db.Uuid
+  userId             String         @map("user_id") @db.Uuid
+  documentId         String         @map("document_id") @db.Uuid
+  documentVersionId  String         @map("document_version_id") @db.Uuid
+  format             ExportFormat
+  status             JobStatus
+  storageKey         String?        @map("storage_key")
+  signedUrlExpiresAt DateTime?      @map("signed_url_expires_at") @db.Timestamptz(6)
+  checksum           String?
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime?      @map("completed_at") @db.Timestamptz(6)
+  errorMessage       String?        @map("error_message")
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document           Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion    DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([documentId, status])
+  @@map("export_jobs")
+}

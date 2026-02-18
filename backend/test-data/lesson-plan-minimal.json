@@ -1,0 +1,28 @@
+{
+  "title": "Minimal Lesson Plan Test",
+  "programme": "Diploma in Nursing",
+  "topic": "Basic Anatomy",
+  "documentType": "lesson_plan",
+  "contentJson": {
+    "metadata": {
+      "type": "lesson_plan"
+    },
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "type": "text",
+        "content": "This lesson covers basic human anatomy."
+      },
+      {
+        "id": "objectives",
+        "title": "General Objectives",
+        "type": "list",
+        "content": [
+          "Identify major body systems",
+          "Describe basic anatomical terminology"
+        ]
+      }
+    ]
+  }
+}

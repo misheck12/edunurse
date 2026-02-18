@@ -1,280 +1,735 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Share2, Upload, Sparkles, Search, PlusCircle, MoreHorizontal, CheckCircle, X, Maximize2, Minimize2, FileDown, Printer, FileText, BrainCircuit } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Share2, Upload, Sparkles, Search, PlusCircle, CheckCircle, X, FileDown, FileText, BrainCircuit, AlertTriangle, Save } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useDocument } from '../src/context/DocumentContext';
+import { RichTextBlock, ListBlock, ScriptBlock, RubricBlock, TableBlock } from '../src/components/editor/blocks';
+import ExportModal from '../src/components/editor/ExportModal';
 
 const Editor: React.FC = () => {
-  const navigate = useNavigate();
-  const [showExportModal, setShowExportModal] = useState(false);
+    const navigate = useNavigate();
+    const { documentId: routeDocumentId } = useParams<{ documentId?: string }>();
+    const {
+        currentDocument,
+        updateSection,
+        isLoading,
+        loadDocumentById,
+        regenerateSection,
+        saveCurrentDocument,
+        lastGenerationRun,
+        isSaving,
+        lastSavedAt,
+        error,
+        clearError,
+    } = useDocument();
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+    const [regeneratingSectionId, setRegeneratingSectionId] = useState<string | null>(null);
 
-  return (
-    <div className="flex flex-col h-screen bg-[#f6f7f8] relative overflow-hidden">
-      {/* Top Bar */}
-      <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0 z-20">
-        <div className="flex items-center gap-4 w-1/3">
-          <button onClick={() => navigate('/')} className="text-slate-400 hover:text-blue-600 transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex flex-col">
-            <input 
-                className="font-semibold text-lg bg-transparent border-none p-0 focus:ring-0 text-slate-900 placeholder-slate-400 w-full hover:bg-slate-50 rounded px-1 -ml-1 transition-colors truncate outline-none" 
-                type="text" 
-                defaultValue="OSCE Station: PPH Management" 
-            />
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <CheckCircle size={12} /> Auto-saved to Workspace
-            </span>
-          </div>
-        </div>
+    const [routeLoadError, setRouteLoadError] = useState<string | null>(null);
+    const [saveStatusMessage, setSaveStatusMessage] = useState<string | null>(null);
 
-        <div className="flex items-center justify-center gap-6 w-1/3">
-           <div className="hidden lg:flex items-center gap-4 text-sm text-slate-500">
-              <span className="flex items-center gap-1">Midwifery</span>
-              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-              <span className="flex items-center gap-1">Year 2</span>
-              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-              <span className="flex items-center gap-1 font-medium text-blue-600">NMCZ Standard</span>
-           </div>
-        </div>
+    useEffect(() => {
+        if (!routeDocumentId) return;
+        if (currentDocument?.metadata.id === routeDocumentId) return;
 
-        <div className="flex items-center justify-end gap-3 w-1/3">
-           <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-             <Share2 size={16} /> Share
-           </button>
-           <button 
-             onClick={() => setShowExportModal(true)}
-             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
-           >
-             <Upload size={16} /> Export
-           </button>
-        </div>
-      </header>
+        let active = true;
+        setRouteLoadError(null);
 
-      {/* Editor Body */}
-      <div className="flex flex-1 overflow-hidden relative">
-         {/* Left Sidebar: Schema Structure */}
-         <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 hidden md:flex">
-             <div className="p-4 border-b border-slate-100">
-                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Station Structure</h3>
-                 <div className="relative">
-                     <Search className="absolute left-2 top-1.5 text-slate-400" size={14} />
-                     <input className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500" placeholder="Filter sections..." />
-                 </div>
-             </div>
-             <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-                 {['Station Metadata', 'Candidate Instructions', 'Actor Script', 'Examiner Checklist'].map((item, idx) => (
-                     <a key={item} href="#" className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg group transition-colors ${idx === 1 ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-slate-50'}`}>
-                         <span className={`text-xs font-mono ${idx === 1 ? 'text-blue-500' : 'text-slate-400'}`}>0{idx + 1}</span>
-                         {item}
-                     </a>
-                 ))}
-                 <div className="pl-9 space-y-1">
-                    <a className="block text-xs text-slate-500 hover:text-blue-600 py-1" href="#">Scenario Overview</a>
-                    <a className="block text-xs text-slate-500 hover:text-blue-600 py-1" href="#">Safety Criticals</a>
-                 </div>
-                 {['Scoring Rubric', 'Equipment List'].map((item, idx) => (
-                     <a key={item} href="#" className="flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg group transition-colors">
-                         <span className="text-xs font-mono text-slate-400">0{idx + 5}</span>
-                         {item}
-                     </a>
-                 ))}
-             </nav>
-             <div className="p-4 mt-auto border-t border-slate-200 bg-slate-50">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                     Curriculum Sync Active
+        const load = async () => {
+            try {
+                await loadDocumentById(routeDocumentId);
+            } catch (err) {
+                if (!active) return;
+                setRouteLoadError(err instanceof Error ? err.message : 'Failed to load document from URL.');
+            }
+        };
+
+        void load();
+        return () => {
+            active = false;
+        };
+    }, [routeDocumentId, currentDocument?.metadata.id]);
+
+    useEffect(() => {
+        if (!currentDocument) return;
+        if (currentDocument.sections.length === 0) return;
+        if (!activeSectionId || !currentDocument.sections.some((section) => section.id === activeSectionId)) {
+            setActiveSectionId(currentDocument.sections[0].id);
+        }
+    }, [currentDocument, activeSectionId]);
+
+
+
+
+
+    const handleRegenerateSection = async (sectionId: string, sectionTitle: string) => {
+        const instructions = window.prompt(
+            `Optional guidance for "${sectionTitle}" (leave blank to use default regeneration).`,
+        );
+
+        setRegeneratingSectionId(sectionId);
+        clearError();
+
+        try {
+            await regenerateSection(sectionId, instructions ?? undefined);
+            setActiveSectionId(sectionId);
+        } catch {
+            // Error surfaced by context.
+        } finally {
+            setRegeneratingSectionId(null);
+        }
+    };
+
+    const handleSaveDocument = async () => {
+        setSaveStatusMessage(null);
+        clearError();
+
+        try {
+            await saveCurrentDocument();
+            setSaveStatusMessage('Lesson plan saved to workspace.');
+        } catch {
+            setSaveStatusMessage('Unable to save lesson plan.');
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50">
+                <div className="text-center">
+                    <div className="mb-4 inline-block animate-spin rounded-full border-4 border-blue-600 border-t-transparent h-12 w-12" />
+                    <p className="text-slate-500 font-medium">Generating Document Structure...</p>
                 </div>
-             </div>
-         </aside>
+            </div>
+        );
+    }
 
-         {/* Center Canvas: Structured Blocks */}
-         <main className="flex-1 bg-[#eef4fb] overflow-y-auto relative flex justify-center p-4 md:p-8">
-            <div className="w-full max-w-[850px] bg-white min-h-[1000px] shadow-sm rounded-lg p-12 relative group">
-                
-                {/* Section Block 1 */}
-                <div className="border border-slate-100 rounded-lg p-6 mb-6 hover:border-blue-300 transition-colors relative group/block">
-                    <div className="absolute top-4 right-4 opacity-0 group-hover/block:opacity-100 flex gap-2">
-                         <button className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">Regenerate</button>
-                    </div>
-                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Candidate Instructions</h2>
-                    <div className="prose prose-slate max-w-none">
-                        <p className="font-semibold text-slate-900">Scenario:</p>
-                        <p className="text-slate-600 mb-4">You are a midwife in the labor ward. Mrs. Mulenga, a 28-year-old G2P1, has just delivered a healthy baby boy. 15 minutes after delivery, you notice heavy vaginal bleeding. She appears pale and anxious.</p>
-                        
-                        <p className="font-semibold text-slate-900">Task:</p>
-                        <ol className="text-slate-600 list-decimal pl-5 space-y-1">
-                            <li>Assess the patient's condition immediately.</li>
-                            <li>Identify the likely cause of the hemorrhage.</li>
-                            <li>Demonstrate the initial management steps for uterine atony (Tone).</li>
-                            <li>Communicate effectively with the patient and the team.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                {/* Section Block 2 */}
-                <div className="border border-blue-500 ring-4 ring-blue-500/10 rounded-lg p-6 mb-6 bg-blue-50/10 relative group/block">
-                     <div className="absolute -left-3 top-6 bg-blue-500 text-white p-1 rounded-r text-xs font-bold">ACTIVE</div>
-                    <h2 className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <Sparkles size={14} /> Actor Script (Patient)
-                    </h2>
-                    <div className="space-y-4 text-slate-800">
-                        <div className="flex gap-4">
-                            <span className="font-bold w-24 shrink-0 text-slate-500 text-sm">Initial State:</span>
-                            <p className="text-sm">Lying in bed, looking distressed. Holding abdomen.</p>
-                        </div>
-                        <div className="flex gap-4">
-                            <span className="font-bold w-24 shrink-0 text-slate-500 text-sm">Dialogue 1:</span>
-                            <p className="text-sm">"Nurse, I feel something flowing... it feels wet and warm."</p>
-                        </div>
-                        <div className="flex gap-4">
-                            <span className="font-bold w-24 shrink-0 text-slate-500 text-sm">Dialogue 2:</span>
-                            <p className="text-sm">"I feel dizzy... is everything okay?" (If candidate checks pulse)</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Section Block 3: Rubric */}
-                <div className="border border-slate-100 rounded-lg p-6 mb-6 hover:border-blue-300 transition-colors relative">
-                     <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Examiner Marking Checklist</h2>
-                     <table className="min-w-full divide-y divide-slate-200 text-sm">
-                         <thead className="bg-slate-50">
-                             <tr>
-                                 <th className="px-3 py-2 text-left font-medium text-slate-500">Action</th>
-                                 <th className="px-3 py-2 text-left font-medium text-slate-500">Marks</th>
-                                 <th className="px-3 py-2 text-left font-medium text-slate-500">Critical?</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-slate-100">
-                             <tr>
-                                 <td className="px-3 py-2">Calls for help immediately</td>
-                                 <td className="px-3 py-2">2</td>
-                                 <td className="px-3 py-2 text-red-500 font-bold">YES</td>
-                             </tr>
-                             <tr>
-                                 <td className="px-3 py-2">Massages the uterus continuously</td>
-                                 <td className="px-3 py-2">4</td>
-                                 <td className="px-3 py-2 text-red-500 font-bold">YES</td>
-                             </tr>
-                             <tr>
-                                 <td className="px-3 py-2">Checks bladder and catheterizes if full</td>
-                                 <td className="px-3 py-2">2</td>
-                                 <td className="px-3 py-2 text-slate-400">No</td>
-                             </tr>
-                         </tbody>
-                     </table>
-                </div>
-
-                {/* Add Block Placeholder */}
-                <div className="pt-4 flex justify-center">
-                    <button className="flex items-center gap-2 text-slate-400 hover:text-blue-600 transition-colors px-4 py-2 rounded-full hover:bg-white border border-transparent hover:border-slate-200">
-                        <PlusCircle size={18} /> Add Section
+    if (!currentDocument) {
+        return (
+            <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50">
+                <div className="text-center">
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">No Active Document</h2>
+                    <p className="text-slate-500 mb-6">
+                        {routeLoadError ?? 'Please start from the wizard to generate a new document.'}
+                    </p>
+                    <button onClick={() => navigate('/create')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700">
+                        Go to Wizard
                     </button>
                 </div>
             </div>
-         </main>
+        );
+    }
 
-         {/* Right Sidebar: Intelligence */}
-         <aside className="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 z-10 shadow-xl lg:shadow-none hidden xl:flex">
-             <div className="p-4 border-b border-slate-100 flex items-center gap-2 text-slate-800 font-semibold bg-slate-50/50">
-                 <BrainCircuit size={18} className="text-purple-600" /> 
-                 <span>Curriculum Intelligence</span>
-             </div>
-             
-             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                
-                {/* Grounding Source */}
-                <div className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">Source Material</div>
-                <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded">NMCZ SYLLABUS</span>
+    const activeSection = currentDocument.sections.find(
+        (section) => section.id === activeSectionId,
+    );
+    const activeSectionCitations = Array.isArray((activeSection as any)?.citations)
+        ? ((activeSection as any).citations as Array<{
+            sourceId: string;
+            sourceName?: string;
+            page?: number | null;
+            chunkId: string;
+            quoteSnippet: string;
+        }>)
+        : [];
+
+    const renderSectionContent = (section: any) => {
+        switch (section.type) {
+            case 'text':
+                return <RichTextBlock content={section.content} onChange={(val) => updateSection(section.id, val)} />;
+            case 'list':
+                return <ListBlock content={section.content} onChange={(val) => updateSection(section.id, val)} />;
+            case 'script':
+                return <ScriptBlock content={section.content} onChange={(val) => updateSection(section.id, val)} />;
+            case 'rubric':
+                return <RubricBlock content={section.content} onChange={(val) => updateSection(section.id, val)} />;
+            case 'table':
+                return <TableBlock 
+                    content={section.content} 
+                    onChange={(val) => updateSection(section.id, val)}
+                    documentContext={{
+                        topic: currentDocument.metadata.curriculumContext.topic,
+                        programme: currentDocument.metadata.curriculumContext.programme,
+                        course: currentDocument.metadata.curriculumContext.course ?? undefined,
+                    }}
+                />;
+            case 'duration_list':
+                // Reuse list block for now, or create a specific one later
+                return (
+                    <div className="space-y-2">
+                        {(section.content as any[]).map((item: any, i: number) => (
+                            <div key={i} className="flex gap-2 p-2 bg-slate-50 rounded border border-slate-200">
+                                <span className="font-bold text-blue-600 w-16 shrink-0">{item.time}</span>
+                                <div className="flex-1">
+                                    <p className="font-medium text-slate-900">{item.activity}</p>
+                                    <p className="text-xs text-slate-500">Method: {item.method} | Resources: {item.resources}</p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <p className="text-xs text-slate-800 font-medium">Competency 4.2: Management of Obstetric Emergencies</p>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-3">"The candidate must demonstrate the ability to rapidly identify and manage postpartum hemorrhage using the 4 T's approach..."</p>
-                    <a href="#" className="text-[10px] text-blue-600 hover:underline mt-2 block">View Full Standard &rarr;</a>
-                </div>
+                );
+            default:
+                return <div className="p-4 bg-red-50 text-red-500 text-xs">Unknown Section Type: {section.type}</div>;
+        }
+    };
 
-                {/* Suggestions */}
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                    <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                        <Sparkles size={14} /> AI Suggestion
-                    </h4>
-                    <p className="text-xs text-blue-700 mb-3 leading-relaxed">
-                        The current scenario does not explicitly mention "checking for placental completeness". This is a key requirement in the Year 2 Midwifery syllabus for PPH.
-                    </p>
-                    <button className="w-full bg-white text-blue-700 text-xs font-semibold py-2 rounded border border-blue-200 hover:bg-blue-50 transition-all">
-                        Add Placental Check Step
+    const institutionalSectionIds = [
+        'lesson_metadata',
+        'introduction',
+        'general_objective',
+        'specific_objectives',
+        'lesson_presentation',
+        'summary',
+        'evaluation',
+        'assignment',
+        'references',
+    ];
+
+    const isInstitutionalLessonPlan =
+        (currentDocument.metadata.type || '').toLowerCase().includes('lesson') &&
+        institutionalSectionIds.every((id) =>
+            currentDocument.sections.some((section) => section.id === id),
+        );
+
+    const orderedInstitutionalSections = institutionalSectionIds
+        .map((id) => currentDocument.sections.find((section) => section.id === id))
+        .filter(Boolean) as Array<any>;
+
+    const lessonMetadataSection = currentDocument.sections.find(
+        (section) => section.id === 'lesson_metadata',
+    ) as any | undefined;
+
+    const metadataFieldOrder = [
+        'NAME OF STUDENT',
+        'STUDENT NUMBER',
+        'COURSE NAME',
+        'PROGRAMME',
+        'NAME OF TOPIC',
+        'VENUE',
+        'INTAKE',
+        'SIZE OF CLASS',
+        'DATE',
+        'TIME',
+        'DURATION',
+        'METHOD OF TEACHING',
+        'MEDIA OF TEACHING',
+        'NAME OF SUPERVISOR',
+    ];
+
+    const lessonMetadataMap = (() => {
+        const map = new Map<string, string>();
+        const rows = Array.isArray(lessonMetadataSection?.content)
+            ? lessonMetadataSection.content
+            : [];
+        rows.forEach((row: unknown) => {
+            if (!row || typeof row !== 'object' || Array.isArray(row)) return;
+            const record = row as Record<string, unknown>;
+            const field = typeof record.field === 'string' ? record.field.trim() : '';
+            if (!field) return;
+            const value =
+                typeof record.value === 'string'
+                    ? record.value
+                    : String(record.value ?? '');
+            map.set(field, value);
+        });
+        return map;
+    })();
+
+    const updateLessonMetadataField = (field: string, value: string) => {
+        if (!lessonMetadataSection) return;
+        const nextRows = metadataFieldOrder.map((key) => ({
+            field: key,
+            value: key === field ? value : lessonMetadataMap.get(key) ?? '',
+        }));
+        void updateSection(lessonMetadataSection.id, nextRows);
+    };
+
+    const renderSimpleTextArea = (section: any, rows = 5) => (
+        <textarea
+            className="w-full resize-y border border-slate-300 px-3 py-2 text-sm leading-relaxed outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            value={typeof section.content === 'string' ? section.content : String(section.content ?? '')}
+            onChange={(event) => void updateSection(section.id, event.target.value)}
+            rows={rows}
+        />
+    );
+
+    const renderSimpleList = (section: any) => {
+        const items = Array.isArray(section.content)
+            ? section.content.map((item: unknown) => String(item ?? ''))
+            : [];
+
+        const updateListItem = (index: number, value: string) => {
+            const next = [...items];
+            next[index] = value;
+            void updateSection(section.id, next);
+        };
+
+        const addListItem = () => {
+            void updateSection(section.id, [...items, '']);
+        };
+
+        const removeListItem = (index: number) => {
+            void updateSection(
+                section.id,
+                items.filter((_: string, idx: number) => idx !== index),
+            );
+        };
+
+        return (
+            <div className="space-y-2">
+                {items.map((item: string, index: number) => (
+                    <div key={`${section.id}-${index}`} className="flex items-start gap-2">
+                        <span className="pt-2 text-xs font-semibold text-slate-500">{index + 1}.</span>
+                        <textarea
+                            className="w-full resize-y border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={item}
+                            onChange={(event) => updateListItem(index, event.target.value)}
+                            rows={2}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => removeListItem(index)}
+                            className="px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                            Remove
+                        </button>
+                    </div>
+                ))}
+                <button
+                    type="button"
+                    onClick={addListItem}
+                    className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                    Add Item
+                </button>
+            </div>
+        );
+    };
+
+    const renderInstitutionalPresentationTable = (section: any) => {
+        const rows = Array.isArray(section.content)
+            ? (section.content as Array<Record<string, unknown>>)
+            : [];
+        const columns: Array<{ key: string; label: string }> = [
+            { key: 'time', label: 'TIME' },
+            { key: 'specificObjective', label: 'SPECIFIC OBJECTIVE' },
+            { key: 'content', label: 'CONTENT' },
+            { key: 'materials', label: 'AUDIO VISUAL AID' },
+            { key: 'educatorActivities', label: "TEACHER'S ACTIVITY" },
+            { key: 'learnerActivities', label: "LEANER'S ACTIVITY" },
+            { key: 'assessment', label: 'EVALUATION' },
+        ];
+
+        const updateTableCell = (rowIndex: number, key: string, value: string) => {
+            const nextRows = rows.map((row, index) =>
+                index === rowIndex ? { ...row, [key]: value } : row,
+            );
+            void updateSection(section.id, nextRows);
+        };
+
+        const addTableRow = () => {
+            const nextRows = [
+                ...rows,
+                {
+                    phase: '',
+                    time: '',
+                    specificObjective: '',
+                    content: '',
+                    materials: '',
+                    educatorActivities: '',
+                    learnerActivities: '',
+                    assessment: '',
+                },
+            ];
+            void updateSection(section.id, nextRows);
+        };
+
+        return (
+            <div className="overflow-x-auto border border-slate-300">
+                <table className="w-full min-w-[1100px] border-collapse text-xs">
+                    <thead>
+                        <tr>
+                            {columns.map((column) => (
+                                <th
+                                    key={column.key}
+                                    className="border border-slate-300 bg-slate-100 px-2 py-2 text-left font-bold text-slate-700"
+                                >
+                                    {column.label}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, rowIndex) => (
+                            <tr key={`${section.id}-row-${rowIndex}`}>
+                                {columns.map((column) => (
+                                    <td key={`${section.id}-${rowIndex}-${column.key}`} className="border border-slate-300 align-top">
+                                        <textarea
+                                            className="w-full min-h-[90px] resize-y border-0 px-2 py-2 text-xs leading-relaxed outline-none focus:bg-blue-50"
+                                            value={String(row?.[column.key] ?? '')}
+                                            onChange={(event) =>
+                                                updateTableCell(rowIndex, column.key, event.target.value)
+                                            }
+                                        />
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div className="border-t border-slate-300 bg-white p-2">
+                    <button
+                        type="button"
+                        onClick={addTableRow}
+                        className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                        Add Row
                     </button>
                 </div>
+            </div>
+        );
+    };
 
-                {/* Tools */}
-                <div>
-                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Refinement Tools</h5>
-                    <div className="grid grid-cols-1 gap-2">
-                        <button className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg text-left transition-all text-sm text-slate-600">
-                             <Minimize2 size={16} /> Simplify Language
-                        </button>
-                        <button className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg text-left transition-all text-sm text-slate-600">
-                             <CheckCircle size={16} /> Validate References
-                        </button>
+    return (
+        <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#f6f7f8]">
+            {/* Top Bar */}
+            <header className="z-20 shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-6 sm:py-0">
+                <div className="flex min-h-16 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3 sm:w-1/3 sm:gap-4">
+                    <button onClick={() => navigate('/create')} className="text-slate-400 hover:text-blue-600 transition-colors">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <input
+                            className="w-full truncate rounded bg-transparent px-1 text-base font-semibold text-slate-900 outline-none transition-colors hover:bg-slate-50 focus:ring-0 sm:-ml-1 sm:text-lg"
+                            type="text"
+                            value={currentDocument.metadata.title}
+                            readOnly
+                        />
+                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                            <CheckCircle size={12} />
+                            {isSaving
+                                ? 'Saving...'
+                                : lastSavedAt
+                                    ? `Saved ${new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' }).format(lastSavedAt)}`
+                                    : 'Not saved yet'}
+                        </span>
                     </div>
                 </div>
-             </div>
-         </aside>
-      </div>
 
-      {/* Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden">
-              <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
-                 <div>
-                    <h2 className="text-2xl font-semibold text-slate-900">Export Document</h2>
-                    <p className="text-slate-500 text-sm">Inspection-ready formats for printing or archiving.</p>
-                 </div>
-                 <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:bg-slate-100 p-1 rounded-full"><X size={24}/></button>
-              </div>
-              
-              <div className="px-8 py-8 space-y-8">
-                 <section>
-                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">File Format</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                       {[
-                           { name: 'Word (.docx)', icon: FileText, desc: 'Editable' },
-                           { name: 'PDF', icon: FileDown, desc: 'Print Ready' },
-                           { name: 'LMS Package', icon: Upload, desc: 'Moodle / Canvas' }
-                       ].map((opt, i) => (
-                           <label key={opt.name} className="cursor-pointer relative group">
-                               <input type="radio" name="format" className="peer sr-only" defaultChecked={i === 0} />
-                               <div className="flex flex-col items-center justify-center p-6 rounded-lg border-2 border-slate-200 hover:border-blue-300 bg-white peer-checked:border-blue-500 peer-checked:bg-blue-50/50 transition-all">
-                                   <div className="mb-3 p-3 rounded-full bg-slate-100 text-slate-500 peer-checked:bg-blue-100 peer-checked:text-blue-600">
-                                       <opt.icon size={30} />
-                                   </div>
-                                   <span className="font-medium text-slate-900">{opt.name}</span>
-                                   <span className="text-xs text-slate-500 mt-1">{opt.desc}</span>
-                                   <div className="absolute top-2 right-2 opacity-0 peer-checked:opacity-100 text-blue-600">
-                                       <CheckCircle size={20} />
-                                   </div>
-                               </div>
-                           </label>
-                       ))}
+                <div className="hidden items-center justify-center gap-6 sm:w-1/3 lg:flex">
+                    <div className="hidden items-center gap-4 text-sm text-slate-500 xl:flex">
+                        <span className="flex items-center gap-1">{currentDocument.metadata.curriculumContext.programme}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        <span className="flex items-center gap-1">{currentDocument.metadata.curriculumContext.year}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        <span className="flex items-center gap-1 font-medium text-blue-600">NMCZ Standard</span>
                     </div>
-                 </section>
-              </div>
+                </div>
 
-              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                  <div className="text-sm text-slate-500">
-                  </div>
-                  <div className="flex gap-4">
-                      <button onClick={() => setShowExportModal(false)} className="px-6 py-2.5 rounded-lg text-slate-600 font-medium hover:bg-slate-200">Cancel</button>
-                      <button className="px-8 py-2.5 rounded-lg bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:bg-blue-700">
-                          <FileDown size={20} /> Download
-                      </button>
-                  </div>
-              </div>
-           </div>
+                <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-1/3 sm:justify-end sm:gap-3">
+                    <button
+                        onClick={() => void handleSaveDocument()}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60"
+                    >
+                        <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                        <Share2 size={16} /> Share
+                    </button>
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                    >
+                        <Upload size={16} /> Export
+                    </button>
+                </div>
+                </div>
+            </header>
+
+            {/* Editor Body */}
+            <div className="flex flex-1 overflow-hidden relative">
+                {/* Left Sidebar: Schema Structure */}
+                <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 hidden md:flex">
+                    <div className="p-4 border-b border-slate-100">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Document Structure</h3>
+                        <div className="relative">
+                            <Search className="absolute left-2 top-1.5 text-slate-400" size={14} />
+                            <input className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500" placeholder="Filter sections..." />
+                        </div>
+                    </div>
+                    <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+                        {currentDocument.sections.map((section, idx) => (
+                            <button
+                                key={section.id}
+                                onClick={() => {
+                                    setActiveSectionId(section.id);
+                                    document.getElementById(`section-${section.id}`)?.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg group transition-colors text-left ${activeSectionId === section.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <span className={`text-xs font-mono ${activeSectionId === section.id ? 'text-blue-500' : 'text-slate-400'}`}>0{idx + 1}</span>
+                                <span className="truncate">{section.title}</span>
+                            </button>
+                        ))}
+                    </nav>
+                    <div className="p-4 mt-auto border-t border-slate-200 bg-slate-50">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                            Curriculum Sync Active
+                        </div>
+                    </div>
+                </aside>
+
+                {/* Center Canvas: Structured Blocks */}
+                <main className="relative flex flex-1 justify-center overflow-y-auto bg-[#eef4fb] p-2 sm:p-4 md:p-8">
+                    <div className="relative group w-full max-w-[850px] min-h-[1000px] rounded-lg bg-white p-4 shadow-sm sm:p-6 md:p-12">
+                        {error && (
+                            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {error}
+                            </div>
+                        )}
+                        {saveStatusMessage && !error && (
+                            <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                {saveStatusMessage}
+                            </div>
+                        )}
+
+                        {!isInstitutionalLessonPlan && (
+                            <>
+                                {currentDocument.sections.map((section) => (
+                                    <div
+                                        key={section.id}
+                                        id={`section-${section.id}`}
+                                        className={`relative group/block mb-6 rounded-lg border p-4 transition-colors sm:p-6 ${activeSectionId === section.id ? 'border-blue-300 ring-4 ring-blue-500/10' : 'border-slate-100 hover:border-slate-200'}`}
+                                        onClick={() => setActiveSectionId(section.id)}
+                                    >
+                                        <div className="absolute right-4 top-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover/block:opacity-100">
+                                            <button
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    void handleRegenerateSection(section.id, section.title);
+                                                }}
+                                                disabled={Boolean(regeneratingSectionId) || isLoading}
+                                                className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-60"
+                                            >
+                                                <Sparkles size={12} />
+                                                {regeneratingSectionId === section.id ? 'Regenerating...' : 'Regenerate'}
+                                            </button>
+                                        </div>
+                                        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                            {section.type === 'script' && <Sparkles size={14} className="text-blue-500" />}
+                                            {section.title}
+                                        </h2>
+
+                                        {renderSectionContent(section)}
+                                    </div>
+                                ))}
+
+                                {/* Add Block Placeholder */}
+                                <div className="pt-4 flex justify-center">
+                                    <button className="flex items-center gap-2 text-slate-400 hover:text-blue-600 transition-colors px-4 py-2 rounded-full hover:bg-white border border-transparent hover:border-slate-200">
+                                        <PlusCircle size={18} /> Add Section
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        {isInstitutionalLessonPlan && (
+                            <div className="space-y-8">
+                                <div className="text-center">
+                                    <h1 className="text-xl font-bold tracking-wide text-slate-900 sm:text-2xl">LUSAKA OPEN BUSINESS COLLEGE</h1>
+                                    <h2 className="mt-1 text-lg font-bold uppercase underline sm:text-xl">CLASSROOM LESSON PLAN</h2>
+                                </div>
+
+                                {lessonMetadataSection && (
+                                    <section id={`section-${lessonMetadataSection.id}`} onClick={() => setActiveSectionId(lessonMetadataSection.id)}>
+                                        <div className="overflow-x-auto border border-slate-300">
+                                            <table className="w-full min-w-[760px] border-collapse text-xs sm:text-sm">
+                                                <tbody>
+                                                    {Array.from({ length: Math.ceil(metadataFieldOrder.length / 2) }).map((_, rowIndex) => {
+                                                        const leftField = metadataFieldOrder[rowIndex * 2];
+                                                        const rightField = metadataFieldOrder[rowIndex * 2 + 1];
+                                                        return (
+                                                            <tr key={`meta-row-${rowIndex}`}>
+                                                                <td className="w-[22%] border border-slate-300 bg-slate-100 px-2 py-2 font-semibold">{leftField}:</td>
+                                                                <td className="w-[28%] border border-slate-300 px-2 py-1">
+                                                                    <input
+                                                                        className="w-full border-0 bg-transparent text-sm outline-none"
+                                                                        value={lessonMetadataMap.get(leftField) ?? ''}
+                                                                        onChange={(event) => updateLessonMetadataField(leftField, event.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td className="w-[22%] border border-slate-300 bg-slate-100 px-2 py-2 font-semibold">
+                                                                    {rightField ? `${rightField}:` : ''}
+                                                                </td>
+                                                                <td className="w-[28%] border border-slate-300 px-2 py-1">
+                                                                    {rightField ? (
+                                                                        <input
+                                                                            className="w-full border-0 bg-transparent text-sm outline-none"
+                                                                            value={lessonMetadataMap.get(rightField) ?? ''}
+                                                                            onChange={(event) => updateLessonMetadataField(rightField, event.target.value)}
+                                                                        />
+                                                                    ) : null}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+                                )}
+
+                                {orderedInstitutionalSections
+                                    .filter((section) => section.id !== 'lesson_metadata')
+                                    .map((section) => (
+                                        <section key={section.id} id={`section-${section.id}`} onClick={() => setActiveSectionId(section.id)}>
+                                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                                <h3 className="text-base font-bold uppercase text-slate-900 sm:text-lg">{section.title}</h3>
+                                                <button
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        void handleRegenerateSection(section.id, section.title);
+                                                    }}
+                                                    disabled={Boolean(regeneratingSectionId) || isLoading}
+                                                    className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-60"
+                                                >
+                                                    <Sparkles size={12} />
+                                                    {regeneratingSectionId === section.id ? 'Regenerating...' : 'Regenerate'}
+                                                </button>
+                                            </div>
+
+                                            {section.id === 'lesson_presentation' && renderInstitutionalPresentationTable(section)}
+                                            {section.type === 'text' && section.id !== 'lesson_presentation' && renderSimpleTextArea(section, 6)}
+                                            {section.type === 'list' && section.id !== 'lesson_presentation' && renderSimpleList(section)}
+                                            {!['text', 'list'].includes(section.type) && section.id !== 'lesson_presentation' && renderSectionContent(section)}
+                                        </section>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
+                </main>
+
+                {/* Right Sidebar: Intelligence */}
+                <aside className="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 z-10 shadow-xl lg:shadow-none hidden xl:flex">
+                    <div className="p-4 border-b border-slate-100 flex items-center gap-2 text-slate-800 font-semibold bg-slate-50/50">
+                        <BrainCircuit size={18} className="text-purple-600" />
+                        <span>Curriculum Intelligence</span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div>
+                            <div className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">Run Details</div>
+                            <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-slate-500">Status</span>
+                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${lastGenerationRun?.status === 'succeeded'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : lastGenerationRun?.status === 'failed' || lastGenerationRun?.status === 'blocked'
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                        }`}>
+                                        {lastGenerationRun?.status ?? 'n/a'}
+                                    </span>
+                                </div>
+                                <div className="text-xs text-slate-600">
+                                    Provider: <span className="font-medium text-slate-800">{lastGenerationRun?.modelProvider ?? 'n/a'}</span>
+                                </div>
+                                <div className="text-xs text-slate-600">
+                                    Model: <span className="font-medium text-slate-800">{lastGenerationRun?.modelName ?? 'n/a'}</span>
+                                </div>
+                                <div className="text-xs text-slate-600">
+                                    Retrieval chunks: <span className="font-medium text-slate-800">{lastGenerationRun?.retrievals?.length ?? 0}</span>
+                                </div>
+                                {lastGenerationRun?.id && (
+                                    <div className="text-[11px] text-slate-500 break-all">
+                                        Run ID: {lastGenerationRun.id}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {lastGenerationRun?.flags && lastGenerationRun.flags.length > 0 && (
+                            <div>
+                                <div className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">Guardrails</div>
+                                <div className="space-y-2">
+                                    {lastGenerationRun.flags.map((flag) => (
+                                        <div
+                                            key={flag.id}
+                                            className={`rounded-lg border px-3 py-2 text-xs ${flag.severity === 'blocking'
+                                                ? 'border-red-200 bg-red-50 text-red-700'
+                                                : flag.severity === 'warning'
+                                                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                    : 'border-blue-200 bg-blue-50 text-blue-700'
+                                                }`}
+                                        >
+                                            <div className="font-semibold flex items-center gap-1">
+                                                <AlertTriangle size={12} />
+                                                {flag.flagType}
+                                            </div>
+                                            <div className="mt-1">
+                                                Severity: {flag.severity}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div>
+                            <div className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">
+                                Section Citations
+                            </div>
+                            {!activeSection && (
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                                    Select a section to inspect citations.
+                                </div>
+                            )}
+                            {activeSection && activeSectionCitations.length === 0 && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                    No citations attached to this section yet.
+                                </div>
+                            )}
+                            {activeSectionCitations.length > 0 && (
+                                <div className="space-y-2">
+                                    {activeSectionCitations.map((citation, index) => (
+                                        <div
+                                            key={`${citation.chunkId}-${index}`}
+                                            className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                                        >
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                    {citation.sourceName ?? 'Curriculum Source'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500">
+                                                    {citation.page ? `Page ${citation.page}` : 'Page n/a'}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-600 leading-relaxed">
+                                                "{citation.quoteSnippet}"
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 mt-1 break-all">
+                                                chunk: {citation.chunkId}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            {/* Export Modal */}
+            <ExportModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                documentId={currentDocument.metadata.id}
+                documentTitle={currentDocument.metadata.title}
+            />
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default Editor;

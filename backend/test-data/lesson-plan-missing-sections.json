@@ -1,0 +1,78 @@
+{
+  "title": "Lesson Plan with Missing Optional Sections",
+  "programme": "Diploma in Nursing",
+  "year": "Year 1",
+  "topic": "Pharmacology Basics",
+  "documentType": "lesson_plan",
+  "contentJson": {
+    "metadata": {
+      "type": "lesson_plan",
+      "curriculumContext": {
+        "course": "Pharmacology I",
+        "programmeLevel": "Diploma in Nursing - Year 1 Semester 2"
+      }
+    },
+    "sections": [
+      {
+        "id": "lesson_metadata",
+        "title": "Lesson Metadata",
+        "type": "metadata",
+        "content": [
+          { "field": "COURSE NAME", "value": "Pharmacology I" },
+          { "field": "TOPIC", "value": "Drug Administration Routes" },
+          { "field": "DATE", "value": "20th February 2026" }
+        ]
+      },
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "type": "text",
+        "content": "Understanding different routes of drug administration is fundamental to safe nursing practice."
+      },
+      {
+        "id": "objectives",
+        "title": "General Objectives",
+        "type": "list",
+        "content": [
+          "List the major routes of drug administration",
+          "Explain the advantages and disadvantages of each route",
+          "Demonstrate proper technique for oral medication administration"
+        ]
+      },
+      {
+        "id": "lesson_presentation",
+        "title": "Lesson Presentation",
+        "type": "table",
+        "content": [
+          {
+            "time": "15 min",
+            "specificObjective": "Introduce drug administration routes",
+            "content": "Overview of oral, parenteral, topical, and inhalation routes",
+            "educatorActivities": "Present classification of routes with examples",
+            "learnerActivities": "Take notes and ask questions",
+            "materials": "PowerPoint, handouts",
+            "assessment": "Q&A session"
+          },
+          {
+            "time": "30 min",
+            "specificObjective": "Demonstrate oral medication administration",
+            "content": "Steps for safe oral medication administration",
+            "educatorActivities": "Demonstrate technique using simulation",
+            "learnerActivities": "Practice on simulation equipment",
+            "materials": "Medication cups, water, simulation supplies",
+            "assessment": "Practical observation"
+          }
+        ]
+      },
+      {
+        "id": "references",
+        "title": "References",
+        "type": "list",
+        "content": [
+          "Clayton, B.D. & Willihnganz, M. (2020). Basic Pharmacology for Nurses (18th ed.). St. Louis: Elsevier.",
+          "Lusaka School of Nursing (2022). Pharmacology I Module Curriculum."
+        ]
+      }
+    ]
+  }
+}

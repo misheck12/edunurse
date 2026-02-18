@@ -1,0 +1,5 @@
+ALTER TABLE "users"
+ADD COLUMN IF NOT EXISTS "phone_number" TEXT,
+ADD COLUMN IF NOT EXISTS "school" TEXT,
+ADD COLUMN IF NOT EXISTS "student_number" TEXT,
+ADD COLUMN IF NOT EXISTS "information" TEXT;

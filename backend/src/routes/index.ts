@@ -1,0 +1,38 @@
+import { FastifyPluginAsync } from "fastify";
+import healthRoutes from "./health.js";
+import documentRoutes from "./documents.js";
+import curriculumRoutes from "./curriculum.js";
+import generationRoutes from "./generation.js";
+import exportRoutes from "./exports.js";
+import adminRoutes from "./admin.js";
+import adminRagRoutes from "./admin-rag.js";
+import userRoutes from "./users.js";
+import adminOpsRoutes from "./admin-ops.js";
+import adminManagementRoutes from "./admin-management.js";
+import authRoutes from "./auth.js";
+import templateRoutes from "./templates.js";
+import paymentRoutes from "./payments.js";
+import subscriptionRoutes from "./subscriptions.js";
+import adminAnalyticsRoutes from "./admin-analytics.js";
+import transactionRoutes from "./transactions.js";
+import profileRoutes from "./profile.js";
+
+export const registerRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(healthRoutes);
+  await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(profileRoutes, { prefix: "/profile" });
+  await app.register(paymentRoutes, { prefix: "/payments" });
+  await app.register(subscriptionRoutes, { prefix: "/subscriptions" });
+  await app.register(transactionRoutes, { prefix: "/transactions" });
+  await app.register(adminRoutes, { prefix: "/admin" });
+  await app.register(adminRagRoutes, { prefix: "/admin/rag" });
+  await app.register(adminOpsRoutes, { prefix: "/admin/ops" });
+  await app.register(adminManagementRoutes, { prefix: "/admin" }); // includes /admin/transactions
+  await app.register(adminAnalyticsRoutes, { prefix: "/admin/analytics" });
+  await app.register(userRoutes, { prefix: "/users" });
+  await app.register(templateRoutes, { prefix: "/templates" });
+  await app.register(documentRoutes, { prefix: "/documents" });
+  await app.register(curriculumRoutes, { prefix: "/curriculum" });
+  await app.register(generationRoutes, { prefix: "/generation" });
+  await app.register(exportRoutes, { prefix: "/exports" });
+};

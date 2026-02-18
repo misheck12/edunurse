@@ -1,5 +1,5 @@
 import { Document, Template, CurriculumModule } from './types';
-import { BookOpen, Activity, ClipboardList, Thermometer, GraduationCap, FileText, Settings, HelpCircle, LayoutDashboard, FolderOpen, BrainCircuit } from 'lucide-react';
+import { BookOpen, Activity, ClipboardList, Thermometer, GraduationCap, FileText, Settings, HelpCircle, LayoutDashboard, FolderOpen, BrainCircuit, FileDown } from 'lucide-react';
 
 export const RECENT_DOCS: Document[] = [
   { id: '1', title: 'Postpartum Hemorrhage: Theory Lesson', type: 'Lesson Plan', lastEdited: '2 mins ago', status: 'Draft', programme: 'Midwifery' },
@@ -31,6 +31,7 @@ export const SIDEBAR_ITEMS = [
   { name: 'Document Studio', icon: LayoutDashboard, path: '/' },
   { name: 'Create New', icon: Activity, path: '/create' },
   { name: 'My Documents', icon: FolderOpen, path: '/library' },
+  { name: 'Exported Files', icon: FileDown, path: '/exports' },
   { name: 'Template Library', icon: FileText, path: '/templates' },
   { name: 'Curriculum Intelligence', icon: BrainCircuit, path: '/curriculum' },
   { name: 'Settings', icon: Settings, path: '/settings' },

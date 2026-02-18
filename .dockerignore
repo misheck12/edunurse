@@ -1,0 +1,13 @@
+node_modules
+dist
+dev-dist
+.git
+.gitignore
+.vscode
+.kiro
+backend/node_modules
+backend/dist
+backend/storage
+*.log
+coverage
+temp_*.txt

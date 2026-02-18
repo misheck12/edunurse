@@ -22,3 +22,25 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+backend/storage/
+.env
+backend/.env
+
+# Documentation - ignore all .md files except README.md
+*.md
+!README.md
+
+# Word documents
+*.doc
+*.docx
+
+# Syllabi - nursing modules
+syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/
+backend/tmp/teaching-deck-detailed-1771266462056.pptx
+backend/tmp/teaching-deck-lecture-1771267778432.pptx
+backend/tmp/teaching-deck-lecture-ai-1771267861019.pptx
+backend/tmp/teaching-deck-premium-1771267227985.pptx
+backend/tmp/teaching-deck-premium-ai-1771267315909.pptx
+backend/tmp/teaching-deck-test-1771265797750.pptx
+backend/tmp/teaching-deck-ai-test-1771265852545.pptx
+syllabi
