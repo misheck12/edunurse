@@ -34,6 +34,7 @@ const GOOGLE_DOC_MIME = "application/vnd.google-apps.document";
 const GOOGLE_SHEET_MIME = "application/vnd.google-apps.spreadsheet";
 const GOOGLE_PRESENTATION_MIME = "application/vnd.google-apps.presentation";
 const GOOGLE_FOLDER_MIME = "application/vnd.google-apps.folder";
+const SHARED_WITH_ME_FOLDER_TOKEN = "__shared_with_me__";
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const DOC_MIME = "application/msword";
@@ -435,6 +436,16 @@ function normalizeGoogleDriveFolderId(raw: unknown) {
     return idQueryMatch[1];
   }
 
+  const normalized = input.toLowerCase();
+  if (
+    normalized === "sharedwithme" ||
+    normalized === "shared_with_me" ||
+    normalized === "shared-with-me" ||
+    normalized === SHARED_WITH_ME_FOLDER_TOKEN
+  ) {
+    return SHARED_WITH_ME_FOLDER_TOKEN;
+  }
+
   return input;
 }
 
@@ -539,21 +550,27 @@ async function fetchGoogleDriveDocuments(
       });
     }
   } else if (folderId) {
-    const rootMetaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(
-      folderId,
-    )}?fields=id,name,mimeType&supportsAllDrives=true`;
-    const rootMetaResponse = await fetchWithTimeout(rootMetaUrl, { headers });
+    const isSharedWithMe = folderId === SHARED_WITH_ME_FOLDER_TOKEN;
     let rootName = "";
-    if (rootMetaResponse.ok) {
-      const root = (await rootMetaResponse.json()) as Record<string, unknown>;
-      rootName = typeof root.name === "string" ? root.name : "";
+    if (!isSharedWithMe) {
+      const rootMetaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(
+        folderId,
+      )}?fields=id,name,mimeType&supportsAllDrives=true`;
+      const rootMetaResponse = await fetchWithTimeout(rootMetaUrl, { headers });
+      if (rootMetaResponse.ok) {
+        const root = (await rootMetaResponse.json()) as Record<string, unknown>;
+        rootName = typeof root.name === "string" ? root.name : "";
+      }
+    } else {
+      rootName = "Shared with me";
     }
 
-    const queue: Array<{ folderId: string; depth: number; pathSegments: string[] }> = [
+    const queue: Array<{ folderId: string; depth: number; pathSegments: string[]; sharedWithMe?: boolean }> = [
       {
         folderId,
         depth: 0,
         pathSegments: rootName ? [rootName] : [],
+        sharedWithMe: isSharedWithMe,
       },
     ];
     const visitedFolders = new Set<string>();
@@ -567,7 +584,9 @@ async function fetchGoogleDriveDocuments(
 
       let nextPageToken: string | undefined;
       do {
-        const queryParts = [`'${current.folderId}' in parents`];
+        const queryParts = current.sharedWithMe
+          ? ["sharedWithMe=true"]
+          : [`'${current.folderId}' in parents`];
         if (!includeTrashed) {
           queryParts.push("trashed=false");
         }
@@ -616,6 +635,7 @@ async function fetchGoogleDriveDocuments(
                 pathSegments: name
                   ? [...current.pathSegments, name]
                   : [...current.pathSegments],
+                sharedWithMe: false,
               });
             }
             continue;

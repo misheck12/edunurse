@@ -1585,11 +1585,24 @@ export async function runConnectorIngestion(prisma: PrismaClient, connectorRunId
   }
 
   const finalStatus: ConnectorRunStatus =
-    failedCount === 0
+    fetchResult.documents.length === 0 && failedCount === 0
+      ? "failed"
+      : failedCount === 0
       ? "succeeded"
       : indexedCount > 0
         ? "partial"
         : "failed";
+
+  const noDocumentsDiscovered =
+    fetchResult.documents.length === 0 && failedCount === 0;
+  const adapterErrors = fetchResult.errors;
+  const adapterErrorPreview =
+    adapterErrors.length > 0
+      ? adapterErrors
+          .slice(0, 2)
+          .map((item) => item.message)
+          .join(" | ")
+      : null;
 
   await prisma.connectorRun.update({
     where: { id: run.id },
@@ -1602,11 +1615,22 @@ export async function runConnectorIngestion(prisma: PrismaClient, connectorRunId
       finishedAt: new Date(),
       errorMessage:
         finalStatus === "failed"
-          ? "Connector ingestion failed."
+          ? noDocumentsDiscovered
+            ? "Connector ingestion failed: no documents discovered from connector source."
+            : adapterErrorPreview
+              ? `Connector ingestion failed: ${adapterErrorPreview}`
+              : "Connector ingestion failed."
           : null,
       logJson: toJson({
         logs,
-        adapterErrors: fetchResult.errors,
+        adapterErrors,
+        summary: {
+          noDocumentsDiscovered,
+          discoveredCount: fetchResult.documents.length,
+          fetchedCount,
+          indexedCount,
+          failedCount,
+        },
       }),
     },
   });
