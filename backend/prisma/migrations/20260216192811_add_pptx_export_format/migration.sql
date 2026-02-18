@@ -2,10 +2,10 @@
 ALTER TABLE "service_controls" DROP CONSTRAINT "service_controls_updated_by_user_id_fkey";
 
 -- DropIndex
-DROP INDEX "curriculum_chunks_embedding_hnsw_idx";
+DROP INDEX IF EXISTS "curriculum_chunks_embedding_hnsw_idx";
 
 -- DropIndex
-DROP INDEX "curriculum_chunks_tsv_gin_idx";
+DROP INDEX IF EXISTS "curriculum_chunks_tsv_gin_idx";
 
 -- AlterTable
 ALTER TABLE "service_controls" ALTER COLUMN "updated_at" DROP DEFAULT;
