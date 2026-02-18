@@ -239,13 +239,15 @@ export async function setServiceControl(
         service_key,
         enabled,
         reason,
-        updated_by_user_id
+        updated_by_user_id,
+        updated_at
       )
       VALUES (
         ${input.key},
         ${input.enabled},
         ${trimReason(input.reason)},
-        ${input.updatedByUserId ?? null}::uuid
+        ${input.updatedByUserId ?? null}::uuid,
+        NOW()
       )
       ON CONFLICT (service_key)
       DO UPDATE SET
@@ -373,7 +375,7 @@ export async function ensureStudioDocumentServiceEnabled(
     ?.reason?.trim();
   throw app.httpErrors.serviceUnavailable(
     skillsReason ||
-      clinicalReason ||
-      "Clinical Plan services are temporarily unavailable.",
+    clinicalReason ||
+    "Clinical Plan services are temporarily unavailable.",
   );
 }
