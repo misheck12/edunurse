@@ -6,9 +6,7 @@ ALTER TABLE "users" ADD COLUMN "profile_completed" BOOLEAN NOT NULL DEFAULT fals
 CREATE UNIQUE INDEX "users_nrc_unique" ON "users" (LOWER("nrc")) WHERE "nrc" IS NOT NULL;
 
 -- Update existing users to have profile_completed = true if they have all required fields
+-- Note: only full_name exists at this migration point; other profile fields are added later
 UPDATE "users" 
 SET "profile_completed" = true 
-WHERE "full_name" IS NOT NULL 
-  AND "phone_number" IS NOT NULL 
-  AND "school" IS NOT NULL 
-  AND "student_number" IS NOT NULL;
+WHERE "full_name" IS NOT NULL;
