@@ -34,11 +34,19 @@ backend/.env
 *.doc
 *.docx
 
-# Syllabi - nursing modules
-syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/
-syllabi
+# Syllabi - nursing modules (ignore raw .docx files and subdirectories, but keep the clean JSON)
+syllabi/**/*.docx
+syllabi/**/*.doc
+syllabi/**/*.txt
+syllabi/**/*.py
+!syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/programme_outline_by_semester.clean.json
 backend/tmp/
 
 # Deployment environment files
 deploy/.env.server
 deploy/.env.server.COMPLETE
+syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/2. YEAR ONE SEMESTER 2/~WRL0003.tmp
+syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/4. YEAR TWO SEMESTER 2/4. YEAR TWO SEMESTER 2.exe
+syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/FINAL DIPLOMA IN NURSING MODULES-2022/.~lock.19. FINAL PAEDIATRIC AND CHILD HEALTH NURSING MODULE I.docx#
+syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/FINAL DIPLOMA IN NURSING MODULES-2022/.~lock.3. FINAL PROFESSIONAL PRACTICE.docx#
+syllabi/FINAL DIPLOMA IN NURSING MODULES-2022/FINAL DIPLOMA IN NURSING MODULES-2022/2. YEAR ONE SEMESTER 2/~WRL0003.tmp
