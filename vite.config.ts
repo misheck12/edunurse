@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
           manifest: false, // Use public/manifest.json
           workbox: {
             navigateFallback: '/index.html',
+            navigateFallbackDenylist: [/^\/api\//],
             cleanupOutdatedCaches: true,
             clientsClaim: true,
             skipWaiting: true,
@@ -61,7 +62,10 @@ export default defineConfig(({ mode }) => {
             ]
           },
           devOptions: {
-            enabled: true
+            enabled: true,
+            navigateFallback: '/index.html',
+            navigateFallbackAllowlist: [/^\/(?!api\/).*/],
+            suppressWarnings: true,
           }
         })
       ],

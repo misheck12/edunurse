@@ -98,12 +98,17 @@ export function PwaManager() {
 
   const handleInstall = async () => {
     if (!installEvent) return;
-    await installEvent.prompt();
-    const choice = await installEvent.userChoice;
-    if (choice.outcome === "accepted") {
-      setInstallEvent(null);
-      return;
+    try {
+      await installEvent.prompt();
+      const choice = await installEvent.userChoice;
+      if (choice.outcome === "accepted") {
+        setInstallEvent(null);
+        return;
+      }
+    } catch (error) {
+      console.warn("PWA install prompt failed:", error);
     }
+
     dismissInstallPrompt();
     setInstallDismissed(true);
     setInstallEvent(null);

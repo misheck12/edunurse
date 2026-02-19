@@ -199,7 +199,14 @@ function isGenericCourseLabel(label: string | undefined) {
   return (
     value.includes("nursing and midwifery council of zambia") ||
     value.includes("nursing and midwifery council") ||
-    value === "zambia"
+    value === "zambia" ||
+    value === "diploma in nursing" ||
+    value === "diploma in registered nursing" ||
+    value === "bsc nursing" ||
+    value === "bachelor of science in nursing" ||
+    /\b(diploma|bsc|bachelor|certificate)\b.*\b(nursing|midwifery)\b/.test(
+      value,
+    )
   );
 }
 
@@ -458,8 +465,17 @@ function buildStructuredOutlineFromCleanNone(raw: CleanNoneOutline, loadedFrom: 
     const semesterLabel = parseSemesterFromRelativePath(doc.relative_path);
     const rawCourse =
       (doc.course_id && coursesMap[doc.course_id]) || undefined;
+    const fileDerivedCourseTitle = cleanCourseFromFileName(file);
+    const relativePathFileName =
+      typeof doc.relative_path === "string"
+        ? doc.relative_path.split(/[\\/]/).pop()
+        : undefined;
+    const relativePathDerivedCourseTitle = relativePathFileName
+      ? cleanCourseFromFileName(relativePathFileName)
+      : fileDerivedCourseTitle;
+
     const courseTitle = isGenericCourseLabel(rawCourse)
-      ? cleanCourseFromFileName(file)
+      ? fileDerivedCourseTitle || relativePathDerivedCourseTitle
       : titleCase(String(rawCourse));
     const topics = parseTopics(doc.topics);
 
