@@ -10,6 +10,7 @@ import {
 } from "./services/export-storage.js";
 
 let isShuttingDown = false;
+let lastStaleRecoveryAt = 0;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -39,6 +40,22 @@ function parseIngestionPayload(payload: unknown) {
   return {
     connectorRunId: record.connectorRunId,
   };
+}
+
+function parseExportPayloadSafe(payload: unknown) {
+  try {
+    return parseExportPayload(payload);
+  } catch {
+    return null;
+  }
+}
+
+function parseIngestionPayloadSafe(payload: unknown) {
+  try {
+    return parseIngestionPayload(payload);
+  } catch {
+    return null;
+  }
 }
 
 async function markJobFailed(
@@ -80,6 +97,111 @@ async function markJobFailed(
       });
     }
   });
+}
+
+async function recoverStaleRunningJobs() {
+  const staleThreshold = new Date(
+    Date.now() - env.WORKER_STALE_LOCK_MINUTES * 60 * 1000,
+  );
+  const staleJobs = await prisma.job.findMany({
+    where: {
+      status: "running",
+      lockedAt: {
+        lt: staleThreshold,
+      },
+    },
+    select: {
+      id: true,
+      jobType: true,
+      payloadJson: true,
+      attemptCount: true,
+      maxAttempts: true,
+    },
+    orderBy: { lockedAt: "asc" },
+    take: 100,
+  });
+
+  if (staleJobs.length === 0) return;
+
+  for (const staleJob of staleJobs) {
+    const exceededAttempts = staleJob.attemptCount >= staleJob.maxAttempts;
+    const staleMessage = `Worker lock exceeded ${env.WORKER_STALE_LOCK_MINUTES} minutes; recovered by worker watchdog.`;
+
+    await prisma.$transaction(async (tx) => {
+      if (exceededAttempts) {
+        await tx.job.update({
+          where: { id: staleJob.id },
+          data: {
+            status: "failed",
+            finishedAt: new Date(),
+            lockedAt: null,
+            errorMessage: staleMessage,
+          },
+        });
+      } else {
+        await tx.job.update({
+          where: { id: staleJob.id },
+          data: {
+            status: "queued",
+            runAt: new Date(),
+            lockedAt: null,
+            errorMessage: staleMessage,
+          },
+        });
+      }
+
+      if (staleJob.jobType === "export") {
+        const payload = parseExportPayloadSafe(staleJob.payloadJson);
+        if (payload?.exportJobId) {
+          await tx.exportJob.updateMany({
+            where: {
+              id: payload.exportJobId,
+              status: "running",
+            },
+            data: exceededAttempts
+              ? {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: staleMessage,
+                }
+              : {
+                  status: "queued",
+                  completedAt: null,
+                  errorMessage: staleMessage,
+                },
+          });
+        }
+      }
+
+      if (staleJob.jobType === "ingestion") {
+        const payload = parseIngestionPayloadSafe(staleJob.payloadJson);
+        if (payload?.connectorRunId) {
+          await tx.connectorRun.updateMany({
+            where: {
+              id: payload.connectorRunId,
+              status: "running",
+            },
+            data: exceededAttempts
+              ? {
+                  status: "failed",
+                  finishedAt: new Date(),
+                  errorMessage: staleMessage,
+                }
+              : {
+                  status: "queued",
+                  startedAt: null,
+                  finishedAt: null,
+                  errorMessage: staleMessage,
+                },
+          });
+        }
+      }
+    });
+  }
+
+  console.log(
+    `[worker] recovered ${staleJobs.length} stale running job(s) older than ${env.WORKER_STALE_LOCK_MINUTES} minute(s)`,
+  );
 }
 
 async function processExportJob(jobId: string) {
@@ -227,9 +349,16 @@ async function claimNextJob() {
 async function start() {
   await ensureExportStorageDir();
   console.log("[worker] export worker started");
+  await recoverStaleRunningJobs();
+  lastStaleRecoveryAt = Date.now();
 
   while (!isShuttingDown) {
     try {
+      if (Date.now() - lastStaleRecoveryAt >= 60_000) {
+        await recoverStaleRunningJobs();
+        lastStaleRecoveryAt = Date.now();
+      }
+
       const nextJob = await claimNextJob();
       if (!nextJob) {
         await sleep(env.EXPORT_WORKER_POLL_MS);

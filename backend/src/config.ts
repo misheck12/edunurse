@@ -12,6 +12,7 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
   EXPORT_STORAGE_DIR: z.string().default("./storage/exports"),
   EXPORT_WORKER_POLL_MS: z.coerce.number().int().positive().default(2000),
+  WORKER_STALE_LOCK_MINUTES: z.coerce.number().int().positive().default(20),
   PRESENTATION_IMAGES_MAX: z.coerce.number().int().nonnegative().default(3),
   PRESENTATION_IMAGE_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(12000),
   PRESENTATION_ENABLE_AI_NOTES: z
