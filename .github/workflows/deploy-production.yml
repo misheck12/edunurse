@@ -198,6 +198,27 @@ jobs:
               fi
             }
 
+            echo "Disk usage before cleanup:"
+            df -h || true
+            docker system df || true
+
+            echo "Pre-build cleanup (preserve postgres data volume)..."
+            # Remove known app containers (keep postgres)
+            docker rm -f edunurse-backend edunurse-worker edunurse-frontend edunurse-migrator 2>/dev/null || true
+            docker ps -aq --filter "name=deploy_backend" | xargs -r docker rm -f || true
+            docker ps -aq --filter "name=deploy_worker" | xargs -r docker rm -f || true
+            docker ps -aq --filter "name=deploy_frontend" | xargs -r docker rm -f || true
+            docker ps -aq --filter "name=deploy_migrator" | xargs -r docker rm -f || true
+
+            # Reclaim image/layer/build cache space
+            docker container prune -f || true
+            docker image prune -af || true
+            docker builder prune -af || true
+
+            echo "Disk usage after cleanup:"
+            docker system df || true
+            df -h || true
+
             echo "Starting postgres..."
             compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
             sleep 25
