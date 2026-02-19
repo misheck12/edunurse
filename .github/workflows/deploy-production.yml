@@ -139,32 +139,87 @@ jobs:
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          # Database
+          POSTGRES_DB: ${{ vars.POSTGRES_DB || 'edunurse' }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'edunurse' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Application
+          NODE_ENV: production
+          HOST: 0.0.0.0
+          PORT: 4000
+          APP_PORT: ${{ vars.APP_PORT || '80' }}
+          # Auth
+          AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET }}
+          AUTH_TOKEN_TTL_SECONDS: ${{ vars.AUTH_TOKEN_TTL_SECONDS || '86400' }}
+          SUPERADMIN_EMAIL: ${{ vars.SUPERADMIN_EMAIL }}
+          SUPERADMIN_PASSWORD: ${{ secrets.SUPERADMIN_PASSWORD }}
+          # LLM
+          LLM_PROVIDER_PRIORITY: ${{ vars.LLM_PROVIDER_PRIORITY || 'azure,gemini' }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ vars.AZURE_OPENAI_DEPLOYMENT }}
+          AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash' }}
+          # Payment
+          LENCO_API_KEY: ${{ secrets.LENCO_API_KEY }}
+          LENCO_API_BASE_URL: ${{ vars.LENCO_API_BASE_URL }}
+          # CORS
+          CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          # Storage
+          EXPORT_STORAGE_DIR: ${{ vars.EXPORT_STORAGE_DIR || '/app/storage/exports' }}
+          EXPORT_WORKER_POLL_MS: ${{ vars.EXPORT_WORKER_POLL_MS || '2000' }}
+          # Embeddings
+          INGESTION_EMBEDDINGS_ENABLED: ${{ vars.INGESTION_EMBEDDINGS_ENABLED || 'true' }}
+          EMBEDDING_PROVIDER_PRIORITY: ${{ vars.EMBEDDING_PROVIDER_PRIORITY || 'azure,gemini' }}
+          # OAuth
+          GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REDIRECT_URI: ${{ vars.GOOGLE_OAUTH_REDIRECT_URI }}
+          # Email
+          EMAIL_ENABLED: ${{ vars.EMAIL_ENABLED || 'true' }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          WHATSAPP_GROUP_LINK: ${{ vars.WHATSAPP_GROUP_LINK }}
+          # AI Images
+          PRESENTATION_ENABLE_AI_IMAGES: ${{ vars.PRESENTATION_ENABLE_AI_IMAGES || 'true' }}
+          AZURE_DALLE_ENDPOINT: ${{ secrets.AZURE_DALLE_ENDPOINT }}
+          AZURE_DALLE_API_KEY: ${{ secrets.AZURE_DALLE_API_KEY }}
         with:
           host: ${{ secrets.SERVER_HOST || secrets.SSH_HOST }}
           username: ${{ secrets.SERVER_USER || secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          envs: DEPLOY_PATH,DEPLOY_REF,IMAGE_NAMESPACE,IMAGE_TAG,GHCR_USERNAME,GHCR_TOKEN
+          envs: DEPLOY_PATH,DEPLOY_REF,IMAGE_NAMESPACE,IMAGE_TAG,GHCR_USERNAME,GHCR_TOKEN,POSTGRES_DB,POSTGRES_USER,POSTGRES_PASSWORD,DATABASE_URL,NODE_ENV,HOST,PORT,APP_PORT,AUTH_TOKEN_SECRET,AUTH_TOKEN_TTL_SECONDS,SUPERADMIN_EMAIL,SUPERADMIN_PASSWORD,LLM_PROVIDER_PRIORITY,AZURE_OPENAI_ENDPOINT,AZURE_OPENAI_API_KEY,AZURE_OPENAI_DEPLOYMENT,AZURE_OPENAI_API_VERSION,GEMINI_API_KEY,GEMINI_MODEL,LENCO_API_KEY,LENCO_API_BASE_URL,CORS_ORIGIN,FRONTEND_URL,EXPORT_STORAGE_DIR,EXPORT_WORKER_POLL_MS,INGESTION_EMBEDDINGS_ENABLED,EMBEDDING_PROVIDER_PRIORITY,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,GOOGLE_OAUTH_REDIRECT_URI,EMAIL_ENABLED,EMAIL_FROM,SUPPORT_EMAIL,WHATSAPP_GROUP_LINK,PRESENTATION_ENABLE_AI_IMAGES,AZURE_DALLE_ENDPOINT,AZURE_DALLE_API_KEY
           script_stop: true
           script: |
             set -euo pipefail
 
+            # Create deployment directory if it doesn't exist
+            mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
 
-            if [ ! -f "deploy/docker-compose.server.yml" ]; then
-              echo "Missing deploy/docker-compose.server.yml"
+            # Login to GitHub Container Registry
+            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            else
+              echo "ERROR: GHCR credentials are required for stateless deployment"
               exit 1
             fi
-            
-            echo "Deploying ref: $DEPLOY_REF"
-            git fetch --all --prune
-            git checkout "$DEPLOY_REF"
-            git pull origin "$DEPLOY_REF"
 
+            # Set image variables
             export BACKEND_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/backend:${IMAGE_TAG}"
             export WORKER_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/worker:${IMAGE_TAG}"
             export MIGRATOR_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/migrator:${IMAGE_TAG}"
             export FRONTEND_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/frontend:${IMAGE_TAG}"
+
+            echo "Deploying images:"
+            echo "  Backend: $BACKEND_IMAGE"
+            echo "  Worker: $WORKER_IMAGE"
+            echo "  Migrator: $MIGRATOR_IMAGE"
+            echo "  Frontend: $FRONTEND_IMAGE"
 
             # Use docker-compose (with hyphen) for older Docker versions
             compose() {
@@ -175,35 +230,214 @@ jobs:
               fi
             }
 
-            CAN_PULL_FROM_REGISTRY=0
-            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              if echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin; then
-                CAN_PULL_FROM_REGISTRY=1
-              else
-                echo "GHCR login failed. Will build images on server."
-              fi
-            else
-              echo "GHCR credentials missing. Will build images on server."
-            fi
+            # Create docker-compose.yml for stateless deployment
+            cat > docker-compose.yml << 'EOF'
+            version: '3.8'
 
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
+            services:
+              postgres:
+                image: postgres:15-alpine
+                environment:
+                  POSTGRES_DB: ${POSTGRES_DB}
+                  POSTGRES_USER: ${POSTGRES_USER}
+                  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+                volumes:
+                  - postgres_data:/var/lib/postgresql/data
+                ports:
+                  - "5432:5432"
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 5
+
+              migrator:
+                image: ${MIGRATOR_IMAGE}
+                environment:
+                  DATABASE_URL: ${DATABASE_URL}
+                depends_on:
+                  postgres:
+                    condition: service_healthy
+                profiles:
+                  - tools
+
+              backend:
+                image: ${BACKEND_IMAGE}
+                ports:
+                  - "4000:4000"
+                environment:
+                  NODE_ENV: ${NODE_ENV}
+                  HOST: ${HOST}
+                  PORT: ${PORT}
+                  DATABASE_URL: ${DATABASE_URL}
+                  AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET}
+                  AUTH_TOKEN_TTL_SECONDS: ${AUTH_TOKEN_TTL_SECONDS}
+                  SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL}
+                  SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD}
+                  LLM_PROVIDER_PRIORITY: ${LLM_PROVIDER_PRIORITY}
+                  AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+                  AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+                  AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+                  AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+                  GEMINI_API_KEY: ${GEMINI_API_KEY}
+                  GEMINI_MODEL: ${GEMINI_MODEL}
+                  LENCO_API_KEY: ${LENCO_API_KEY}
+                  LENCO_API_BASE_URL: ${LENCO_API_BASE_URL}
+                  CORS_ORIGIN: ${CORS_ORIGIN}
+                  FRONTEND_URL: ${FRONTEND_URL}
+                  EXPORT_STORAGE_DIR: ${EXPORT_STORAGE_DIR}
+                  INGESTION_EMBEDDINGS_ENABLED: ${INGESTION_EMBEDDINGS_ENABLED}
+                  EMBEDDING_PROVIDER_PRIORITY: ${EMBEDDING_PROVIDER_PRIORITY}
+                  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+                  GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+                  GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI}
+                  EMAIL_ENABLED: ${EMAIL_ENABLED}
+                  EMAIL_FROM: ${EMAIL_FROM}
+                  SUPPORT_EMAIL: ${SUPPORT_EMAIL}
+                  WHATSAPP_GROUP_LINK: ${WHATSAPP_GROUP_LINK}
+                  PRESENTATION_ENABLE_AI_IMAGES: ${PRESENTATION_ENABLE_AI_IMAGES}
+                  AZURE_DALLE_ENDPOINT: ${AZURE_DALLE_ENDPOINT}
+                  AZURE_DALLE_API_KEY: ${AZURE_DALLE_API_KEY}
+                volumes:
+                  - backend_storage:/app/storage
+                depends_on:
+                  postgres:
+                    condition: service_healthy
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+
+              worker:
+                image: ${WORKER_IMAGE}
+                environment:
+                  NODE_ENV: ${NODE_ENV}
+                  DATABASE_URL: ${DATABASE_URL}
+                  EXPORT_STORAGE_DIR: ${EXPORT_STORAGE_DIR}
+                  EXPORT_WORKER_POLL_MS: ${EXPORT_WORKER_POLL_MS}
+                  LLM_PROVIDER_PRIORITY: ${LLM_PROVIDER_PRIORITY}
+                  AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+                  AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+                  AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+                  AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+                  GEMINI_API_KEY: ${GEMINI_API_KEY}
+                  GEMINI_MODEL: ${GEMINI_MODEL}
+                  INGESTION_EMBEDDINGS_ENABLED: ${INGESTION_EMBEDDINGS_ENABLED}
+                  EMBEDDING_PROVIDER_PRIORITY: ${EMBEDDING_PROVIDER_PRIORITY}
+                  PRESENTATION_ENABLE_AI_IMAGES: ${PRESENTATION_ENABLE_AI_IMAGES}
+                  AZURE_DALLE_ENDPOINT: ${AZURE_DALLE_ENDPOINT}
+                  AZURE_DALLE_API_KEY: ${AZURE_DALLE_API_KEY}
+                volumes:
+                  - backend_storage:/app/storage
+                depends_on:
+                  postgres:
+                    condition: service_healthy
+                restart: unless-stopped
+
+              frontend:
+                image: ${FRONTEND_IMAGE}
+                ports:
+                  - "${APP_PORT}:80"
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD", "curl", "-f", "http://localhost:80"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+
+            volumes:
+              postgres_data:
+              backend_storage:
+            EOF
+
+            # Create .env file from environment variables
+            cat > .env << EOF
+            # Database
+            POSTGRES_DB=${POSTGRES_DB:-edunurse}
+            POSTGRES_USER=${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edunurse}
+            DATABASE_URL=${DATABASE_URL:-postgresql://postgres:edunurse@postgres:5432/edunurse?schema=public}
+
+            # Application
+            NODE_ENV=${NODE_ENV:-production}
+            HOST=${HOST:-0.0.0.0}
+            PORT=${PORT:-4000}
+            APP_PORT=${APP_PORT:-80}
+
+            # Images
+            BACKEND_IMAGE=$BACKEND_IMAGE
+            WORKER_IMAGE=$WORKER_IMAGE
+            MIGRATOR_IMAGE=$MIGRATOR_IMAGE
+            FRONTEND_IMAGE=$FRONTEND_IMAGE
+
+            # Auth
+            AUTH_TOKEN_SECRET=${AUTH_TOKEN_SECRET}
+            AUTH_TOKEN_TTL_SECONDS=${AUTH_TOKEN_TTL_SECONDS:-86400}
+            SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL}
+            SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD}
+
+            # LLM
+            LLM_PROVIDER_PRIORITY=${LLM_PROVIDER_PRIORITY:-azure,gemini}
+            AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+            AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+            AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
+            AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+            GEMINI_API_KEY=${GEMINI_API_KEY}
+            GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+
+            # Payment
+            LENCO_API_KEY=${LENCO_API_KEY}
+            LENCO_API_BASE_URL=${LENCO_API_BASE_URL}
+
+            # CORS
+            CORS_ORIGIN=${CORS_ORIGIN}
+            FRONTEND_URL=${FRONTEND_URL}
+
+            # Storage
+            EXPORT_STORAGE_DIR=${EXPORT_STORAGE_DIR:-/app/storage/exports}
+            EXPORT_WORKER_POLL_MS=${EXPORT_WORKER_POLL_MS:-2000}
+
+            # Embeddings
+            INGESTION_EMBEDDINGS_ENABLED=${INGESTION_EMBEDDINGS_ENABLED:-true}
+            EMBEDDING_PROVIDER_PRIORITY=${EMBEDDING_PROVIDER_PRIORITY:-azure,gemini}
+
+            # OAuth
+            GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+            GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+            GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+
+            # Email
+            EMAIL_ENABLED=${EMAIL_ENABLED:-true}
+            EMAIL_FROM=${EMAIL_FROM}
+            SUPPORT_EMAIL=${SUPPORT_EMAIL}
+            WHATSAPP_GROUP_LINK=${WHATSAPP_GROUP_LINK}
+
+            # AI Images
+            PRESENTATION_ENABLE_AI_IMAGES=${PRESENTATION_ENABLE_AI_IMAGES:-true}
+            AZURE_DALLE_ENDPOINT=${AZURE_DALLE_ENDPOINT}
+            AZURE_DALLE_API_KEY=${AZURE_DALLE_API_KEY}
+            EOF
+
+            # Pull latest images
+            echo "Pulling latest images..."
+            compose pull
+
+            # Start postgres first
+            compose up -d postgres
+            echo "Waiting for postgres to be ready..."
             sleep 30
 
-            if [ "$CAN_PULL_FROM_REGISTRY" = "1" ]; then
-              if ! compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server pull backend worker frontend migrator; then
-                echo "Registry pull failed. Falling back to local build."
-                export DOCKER_BUILDKIT=0
-                export COMPOSE_DOCKER_CLI_BUILD=0
-                compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build backend worker frontend migrator
-              fi
-            else
-              export DOCKER_BUILDKIT=0
-              export COMPOSE_DOCKER_CLI_BUILD=0
-              compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build backend worker frontend migrator
-            fi
+            # Run migrations
+            echo "Running database migrations..."
+            compose --profile tools run --rm migrator
 
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
+            # Start all services
+            echo "Starting all services..."
+            compose up -d backend worker frontend
 
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=80 backend worker || true
+            # Show status
+            compose ps
+            compose logs --tail=50 backend worker || true
