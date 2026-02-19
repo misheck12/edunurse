@@ -1943,10 +1943,21 @@ const curriculumRoutes: FastifyPluginAsync = async (app) => {
         }
       }
     } else {
-      for (const source of effectiveSourcesForLevel) {
-        const name = normalizeLabel(source.name);
-        if (name) {
-          courses.add(name);
+      // First, try to get course titles from chunk metadata
+      for (const chunk of levelScopedChunks) {
+        const metadata = safeRecord(chunk.metadataJson);
+        if (typeof metadata.courseTitle === "string" && metadata.courseTitle.trim()) {
+          courses.add(normalizeLabel(metadata.courseTitle));
+        }
+      }
+      
+      // If no course titles found in metadata, fall back to source names
+      if (courses.size === 0) {
+        for (const source of effectiveSourcesForLevel) {
+          const name = normalizeLabel(source.name);
+          if (name) {
+            courses.add(name);
+          }
         }
       }
     }

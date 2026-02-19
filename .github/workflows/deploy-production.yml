@@ -236,6 +236,45 @@ jobs:
               fi
             }
             
+            echo "Starting postgres..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
+            echo "Waiting for postgres to be ready..."
+            sleep 30
+            
+            echo "Building images on server..."
+            export DOCKER_BUILDKIT=0
+            export COMPOSE_DOCKER_CLI_BUILD=0
+            
+            # Build backend first to ensure Prisma client is generated
+            echo "Building backend image..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build backend
+            
+            echo "Building other images..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build worker frontend migrator
+            
+            echo "Running database migrations..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
+            
+            echo "Starting all services..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
+            
+            echo "Deployment status:"
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
+            
+            echo "Recent logs:"
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=50 backend worker || true
+            
+            echo "Deployment completed successfully!"
+            
+            # Use docker-compose (with hyphen) for older Docker versions
+            compose() {
+              if command -v docker-compose >/dev/null 2>&1; then
+                docker-compose "$@"
+              else
+                docker compose "$@"
+              fi
+            }
+            
             echo "Starting deployment with server-side build..."
             
             # Start postgres first
