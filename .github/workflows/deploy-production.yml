@@ -134,64 +134,98 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           DEPLOY_PATH: /var/www/livingilabs/edunurse
-          IMAGE_NAMESPACE: ${{ needs.build-and-push.outputs.image_namespace }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          DEPLOY_REF: ${{ steps.ref.outputs.value }}
         with:
           host: ${{ secrets.SERVER_HOST || secrets.SSH_HOST }}
           username: ${{ secrets.SERVER_USER || secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          envs: DEPLOY_PATH,IMAGE_NAMESPACE,IMAGE_TAG,GHCR_USERNAME,GHCR_TOKEN
+          envs: DEPLOY_PATH,DEPLOY_REF
           script_stop: true
           script: |
             set -euo pipefail
             
-            echo "=== Deployment Debug Info ==="
+            echo "=== Server-side Build Deployment ==="
             echo "Deploy Path: $DEPLOY_PATH"
-            echo "Image Namespace: $IMAGE_NAMESPACE"
-            echo "Image Tag: $IMAGE_TAG"
-            echo "GHCR Username: ${GHCR_USERNAME:-'NOT_SET'}"
-            echo "GHCR Token: ${GHCR_TOKEN:+SET}"
-            echo "============================="
+            echo "Deploy Ref: $DEPLOY_REF"
+            echo "=================================="
             
-            # Create deployment directory
+            # Create deployment directory if it doesn't exist
             mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
             
-            # Test GHCR login
-            if [ -z "${GHCR_USERNAME:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then
-              echo "ERROR: GHCR credentials not provided"
+            # Clone or update repository
+            if [ ! -d ".git" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/misheck12/edunurse.git .
+            else
+              echo "Updating repository..."
+              git fetch --all --prune
+            fi
+            
+            # Handle any local changes
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              echo "Stashing local changes..."
+              git stash push -m "Auto-stash before deployment $(date)" || true
+            fi
+            
+            # Checkout the specified ref
+            git checkout "$DEPLOY_REF"
+            git reset --hard "origin/$DEPLOY_REF"
+            
+            echo "Current commit: $(git rev-parse HEAD)"
+            
+            # Check if docker-compose file exists
+            if [ ! -f "deploy/docker-compose.server.yml" ]; then
+              echo "ERROR: deploy/docker-compose.server.yml not found"
               exit 1
             fi
             
-            echo "Logging into GitHub Container Registry..."
-            if ! echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin; then
-              echo "ERROR: Failed to login to GHCR"
+            if [ ! -f "deploy/.env.server.COMPLETE" ]; then
+              echo "ERROR: deploy/.env.server.COMPLETE not found"
+              echo "Available files in deploy/:"
+              ls -la deploy/ || true
               exit 1
             fi
             
-            echo "Login successful!"
+            # Copy the complete env file to the expected name
+            cp deploy/.env.server.COMPLETE deploy/.env.server
             
-            # Set image variables
-            export BACKEND_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/backend:${IMAGE_TAG}"
-            export WORKER_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/worker:${IMAGE_TAG}"
-            export MIGRATOR_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/migrator:${IMAGE_TAG}"
-            export FRONTEND_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/frontend:${IMAGE_TAG}"
+            # Use docker-compose (with hyphen) for older Docker versions
+            compose() {
+              if command -v docker-compose >/dev/null 2>&1; then
+                docker-compose "$@"
+              else
+                docker compose "$@"
+              fi
+            }
             
-            echo "Images to deploy:"
-            echo "  Backend: $BACKEND_IMAGE"
-            echo "  Worker: $WORKER_IMAGE" 
-            echo "  Migrator: $MIGRATOR_IMAGE"
-            echo "  Frontend: $FRONTEND_IMAGE"
+            echo "Starting deployment with server-side build..."
             
-            # Test pulling one image
-            echo "Testing image pull..."
-            if ! docker pull "$BACKEND_IMAGE"; then
-              echo "ERROR: Failed to pull backend image"
-              exit 1
-            fi
+            # Start postgres first
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
+            echo "Waiting for postgres to be ready..."
+            sleep 30
             
-            echo "Image pull test successful!"
-            echo "Deployment test completed successfully."
+            # Build all images on server
+            echo "Building images on server..."
+            export DOCKER_BUILDKIT=0
+            export COMPOSE_DOCKER_CLI_BUILD=0
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build backend worker frontend migrator
+            
+            # Run migrations
+            echo "Running database migrations..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
+            
+            # Start all services
+            echo "Starting all services..."
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
+            
+            # Show status
+            echo "Deployment status:"
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
+            
+            echo "Recent logs:"
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=50 backend worker || true
+            
+            echo "Deployment completed successfully!"
