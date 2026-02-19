@@ -205,12 +205,41 @@ jobs:
               exit 1
             fi
             
+            echo "Looking for environment file..."
+            echo "Files in deploy directory:"
+            ls -la deploy/ 2>/dev/null || echo "Cannot list deploy directory"
+            
             if [ -f "deploy/.env.server.COMPLETE" ]; then
               echo "✓ .env.server.COMPLETE found"
-              cp deploy/.env.server.COMPLETE deploy/.env.server
-              echo "✓ Environment file copied"
+              echo "Copying environment file..."
+              if cp deploy/.env.server.COMPLETE deploy/.env.server; then
+                echo "✓ Environment file copied successfully"
+              else
+                echo "✗ Failed to copy environment file"
+                exit 1
+              fi
             else
               echo "✗ .env.server.COMPLETE NOT found"
+              echo "Checking for alternative environment files..."
+              ls -la deploy/.env* 2>/dev/null || echo "No .env files found in deploy/"
+              
+              # Try to use the example file as fallback
+              if [ -f "deploy/.env.server.example" ]; then
+                echo "Using .env.server.example as fallback"
+                cp deploy/.env.server.example deploy/.env.server
+                echo "⚠ Using example environment file - you may need to update it"
+              else
+                echo "No environment file available"
+                exit 1
+              fi
+            fi
+            
+            echo "Environment file content check:"
+            if [ -f "deploy/.env.server" ]; then
+              echo "✓ deploy/.env.server exists"
+              echo "File size: $(wc -l < deploy/.env.server 2>/dev/null || echo 'unknown') lines"
+            else
+              echo "✗ deploy/.env.server missing after copy"
               exit 1
             fi
             
