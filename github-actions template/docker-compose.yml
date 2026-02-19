@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sync_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: sync_user
+      POSTGRES_PASSWORD: sync_password
+      POSTGRES_DB: sync_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: sync_backend
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://sync_user:sync_password@postgres:5432/sync_db?schema=public
+      - PORT=3000
+      - JWT_SECRET=supersecretkeychangeinproduction
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: sync_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_TARGET=http://backend:3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:

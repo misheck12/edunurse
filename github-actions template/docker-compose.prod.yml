@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/lyangend/sync/backend:master
+    container_name: sync_backend
+    restart: always
+    network_mode: "host"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}?schema=public
+      - PORT=3002
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+
+  frontend:
+    image: ghcr.io/lyangend/sync/frontend:master
+    container_name: sync_frontend
+    restart: always
+    ports:
+      - "3003:80"
+    depends_on:
+      - backend
+    networks:
+      - sync_network
+
+networks:
+  sync_network:
+    driver: bridge
