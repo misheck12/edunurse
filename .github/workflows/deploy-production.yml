@@ -148,36 +148,87 @@ jobs:
             echo "=== Server-side Build Deployment ==="
             echo "Deploy Path: $DEPLOY_PATH"
             echo "Deploy Ref: $DEPLOY_REF"
+            echo "Current user: $(whoami)"
+            echo "Current directory: $(pwd)"
             echo "=================================="
             
             # Create deployment directory if it doesn't exist
-            mkdir -p "$DEPLOY_PATH"
-            cd "$DEPLOY_PATH"
+            echo "Creating deployment directory: $DEPLOY_PATH"
+            mkdir -p "$DEPLOY_PATH" || {
+              echo "ERROR: Failed to create directory $DEPLOY_PATH"
+              echo "Trying with sudo..."
+              sudo mkdir -p "$DEPLOY_PATH"
+              sudo chown -R $(whoami):$(whoami) "$DEPLOY_PATH"
+            }
+            
+            echo "Changing to deployment directory..."
+            cd "$DEPLOY_PATH" || {
+              echo "ERROR: Cannot change to directory $DEPLOY_PATH"
+              ls -la /var/www/livingilabs/ || true
+              exit 1
+            }
+            
+            echo "Current directory: $(pwd)"
+            echo "Directory contents:"
+            ls -la . || true
             
             # Clone or update repository
             if [ ! -d ".git" ]; then
               echo "Cloning repository..."
-              git clone https://github.com/misheck12/edunurse.git .
+              if ! git clone https://github.com/misheck12/edunurse.git .; then
+                echo "ERROR: Failed to clone repository"
+                echo "Checking git installation..."
+                which git || echo "Git not found"
+                git --version || echo "Git version check failed"
+                exit 1
+              fi
             else
-              echo "Updating repository..."
-              git fetch --all --prune
+              echo "Repository exists, updating..."
+              echo "Git status before update:"
+              git status || true
+              
+              echo "Fetching updates..."
+              if ! git fetch --all --prune; then
+                echo "ERROR: Failed to fetch updates"
+                exit 1
+              fi
             fi
             
             # Handle any local changes
+            echo "Checking for local changes..."
             if ! git diff --quiet || ! git diff --cached --quiet; then
-              echo "Stashing local changes..."
-              git stash push -m "Auto-stash before deployment $(date)" || true
+              echo "Local changes detected, stashing..."
+              git stash push -m "Auto-stash before deployment $(date)" || {
+                echo "WARNING: Failed to stash changes, continuing..."
+              }
+            else
+              echo "No local changes detected"
             fi
             
             # Checkout the specified ref
-            git checkout "$DEPLOY_REF"
-            git reset --hard "origin/$DEPLOY_REF"
+            echo "Checking out ref: $DEPLOY_REF"
+            if ! git checkout "$DEPLOY_REF"; then
+              echo "ERROR: Failed to checkout $DEPLOY_REF"
+              echo "Available branches:"
+              git branch -a || true
+              exit 1
+            fi
+            
+            echo "Resetting to origin/$DEPLOY_REF"
+            if ! git reset --hard "origin/$DEPLOY_REF"; then
+              echo "ERROR: Failed to reset to origin/$DEPLOY_REF"
+              exit 1
+            fi
             
             echo "Current commit: $(git rev-parse HEAD)"
+            echo "Repository update completed successfully"
             
-            # Check if docker-compose file exists
+            # Check if required files exist
+            echo "Checking for required files..."
             if [ ! -f "deploy/docker-compose.server.yml" ]; then
               echo "ERROR: deploy/docker-compose.server.yml not found"
+              echo "Files in deploy directory:"
+              ls -la deploy/ || echo "Deploy directory not found"
               exit 1
             fi
             
@@ -189,7 +240,10 @@ jobs:
             fi
             
             # Copy the complete env file to the expected name
+            echo "Setting up environment file..."
             cp deploy/.env.server.COMPLETE deploy/.env.server
+            
+            echo "Environment file ready. Starting Docker operations..."
             
             # Use docker-compose (with hyphen) for older Docker versions
             compose() {
