@@ -133,72 +133,43 @@ jobs:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0
         env:
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_PATH: /var/www/livingilabs/edunurse
           DEPLOY_REF: ${{ steps.ref.outputs.value }}
           IMAGE_NAMESPACE: ${{ needs.build-and-push.outputs.image_namespace }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || '22' }}
-          envs: DEPLOY_PATH,DEPLOY_REF,IMAGE_NAMESPACE,IMAGE_TAG,GHCR_USERNAME,GHCR_TOKEN,SERVER_ENV_FILE
+          port: 22
+          envs: DEPLOY_PATH,DEPLOY_REF,IMAGE_NAMESPACE,IMAGE_TAG
           script_stop: true
           script: |
             set -euo pipefail
 
-            DEPLOY_PATH="${DEPLOY_PATH:-/var/www/livingilabs/edunurse}"
-            DEPLOY_REF="${DEPLOY_REF:-main}"
-
-            if [ ! -d "$DEPLOY_PATH" ]; then
-              echo "Deploy path not found: $DEPLOY_PATH"
-              exit 1
-            fi
-
             cd "$DEPLOY_PATH"
 
             if [ ! -f "deploy/docker-compose.server.yml" ]; then
-              echo "Missing deploy/docker-compose.server.yml in $DEPLOY_PATH"
+              echo "Missing deploy/docker-compose.server.yml"
               exit 1
             fi
+            
             echo "Deploying ref: $DEPLOY_REF"
             git fetch --all --prune
-            git checkout "$DEPLOY_REF" || git checkout -B "$DEPLOY_REF" "origin/$DEPLOY_REF"
-            git pull --ff-only origin "$DEPLOY_REF" || true
-
-            if [ -z "${SERVER_ENV_FILE:-}" ]; then
-              echo "Missing SERVER_ENV_FILE secret in GitHub environment."
-              exit 1
-            fi
-            printf "%s" "$SERVER_ENV_FILE" > deploy/.env.server
-            chmod 600 deploy/.env.server
+            git checkout "$DEPLOY_REF"
+            git pull origin "$DEPLOY_REF"
 
             export BACKEND_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/backend:${IMAGE_TAG}"
             export WORKER_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/worker:${IMAGE_TAG}"
             export MIGRATOR_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/migrator:${IMAGE_TAG}"
             export FRONTEND_IMAGE="ghcr.io/${IMAGE_NAMESPACE}/frontend:${IMAGE_TAG}"
 
-            compose() {
-              if command -v docker-compose >/dev/null 2>&1; then
-                docker-compose "$@"
-              else
-                docker compose "$@"
-              fi
-            }
+            # Use docker-compose (with hyphen) for older Docker versions
+            docker-compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server pull backend worker frontend migrator
+            docker-compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
+            sleep 30
+            docker-compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
+            docker-compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
 
-            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            else
-              echo "GHCR credentials not provided. Skipping docker login."
-            fi
-
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server pull backend worker frontend migrator
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
-
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=120 backend worker || true
+            docker-compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
+            docker-compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=50 backend worker || true
