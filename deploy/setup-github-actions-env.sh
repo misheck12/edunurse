@@ -122,6 +122,8 @@ set_optional_var_from_env() {
 set_secret "SSH_HOST" "$SSH_HOST_VALUE"
 set_secret "SSH_USER" "$SSH_USER_VALUE"
 set_secret "SSH_PORT" "$SSH_PORT_VALUE"
+set_secret "SERVER_HOST" "$SSH_HOST_VALUE"
+set_secret "SERVER_USER" "$SSH_USER_VALUE"
 set_secret "SSH_PRIVATE_KEY" "$(cat "$SSH_KEY_FILE")"
 set_secret "GHCR_USERNAME" "$GHCR_USERNAME_VALUE"
 set_secret "GHCR_TOKEN" "$GHCR_TOKEN_VALUE"

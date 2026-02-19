@@ -64,6 +64,8 @@ $envFileRaw = Get-Content -Raw -Path $EnvFile
 Set-GhSecret -Name "SSH_HOST" -Value $SshHost
 Set-GhSecret -Name "SSH_USER" -Value $SshUser
 Set-GhSecret -Name "SSH_PORT" -Value $SshPort
+Set-GhSecret -Name "SERVER_HOST" -Value $SshHost
+Set-GhSecret -Name "SERVER_USER" -Value $SshUser
 Set-GhSecret -Name "SSH_PRIVATE_KEY" -Value $sshKeyContent
 Set-GhSecret -Name "GHCR_USERNAME" -Value $GhcrUsername
 Set-GhSecret -Name "GHCR_TOKEN" -Value $GhcrToken
