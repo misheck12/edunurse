@@ -143,169 +143,104 @@ jobs:
           envs: DEPLOY_PATH,DEPLOY_REF
           script_stop: true
           script: |
-            set -e
-            
+            set -euo pipefail
+
             echo "=== Server-side Build Deployment ==="
             echo "Deploy Path: $DEPLOY_PATH"
             echo "Deploy Ref: $DEPLOY_REF"
             echo "Current user: $(whoami)"
             echo "Current directory: $(pwd)"
-            echo "=================================="
-            
-            # Create deployment directory if it doesn't exist
-            echo "Creating deployment directory: $DEPLOY_PATH"
-            mkdir -p "$DEPLOY_PATH" 2>/dev/null || {
-              echo "Trying with sudo..."
-              sudo mkdir -p "$DEPLOY_PATH"
-              sudo chown -R $(whoami):$(whoami) "$DEPLOY_PATH"
-            }
-            
-            echo "Changing to deployment directory..."
+            echo "===================================="
+
+            mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
-            
-            echo "Current directory: $(pwd)"
-            echo "Directory contents:"
-            ls -la . 2>/dev/null || echo "Failed to list directory"
-            
-            # Check if this is a git repository
+
             if [ -d ".git" ]; then
               echo "Git repository detected"
-              echo "Git status:"
-              git status 2>/dev/null || echo "Git status failed"
-              
-              echo "Current branch:"
-              git branch 2>/dev/null || echo "Git branch failed"
-              
-              echo "Git remotes:"
-              git remote -v 2>/dev/null || echo "Git remote failed"
-              
-              # Simple git update
-              echo "Updating repository..."
-              git fetch origin 2>/dev/null || echo "Git fetch failed"
-              git checkout main 2>/dev/null || echo "Git checkout failed"
-              git pull origin main 2>/dev/null || echo "Git pull failed"
+              git fetch --all --prune
             else
-              echo "No git repository found, cloning..."
-              git clone https://github.com/misheck12/edunurse.git . 2>/dev/null || {
-                echo "Git clone failed"
-                exit 1
-              }
+              echo "No git repository found. Cloning..."
+              git clone https://github.com/misheck12/edunurse.git .
+              git fetch --all --prune
             fi
-            
-            echo "Current commit: $(git rev-parse HEAD 2>/dev/null || echo 'Unknown')"
-            
-            # Check for required files
-            echo "Checking for required files..."
-            if [ -f "deploy/docker-compose.server.yml" ]; then
-              echo "✓ docker-compose.server.yml found"
-            else
-              echo "✗ docker-compose.server.yml NOT found"
-              echo "Files in deploy/:"
-              ls -la deploy/ 2>/dev/null || echo "Deploy directory not accessible"
+
+            git checkout "$DEPLOY_REF"
+            if git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
+              git pull --ff-only origin "$DEPLOY_REF"
+            fi
+
+            echo "Current commit: $(git rev-parse HEAD)"
+
+            if [ ! -f "deploy/docker-compose.server.yml" ]; then
+              echo "ERROR: deploy/docker-compose.server.yml not found"
               exit 1
             fi
-            
-            echo "Looking for environment file..."
-            echo "Files in deploy directory:"
-            ls -la deploy/ 2>/dev/null || echo "Cannot list deploy directory"
-            
+
             if [ -f "deploy/.env.server" ]; then
-              echo "✓ deploy/.env.server already exists, keeping it"
-              echo "File size: $(wc -l < deploy/.env.server 2>/dev/null || echo 'unknown') lines"
+              echo "Using deploy/.env.server"
             elif [ -f "deploy/.env.server.COMPLETE" ]; then
-              echo "✓ .env.server.COMPLETE found, copying..."
               cp deploy/.env.server.COMPLETE deploy/.env.server
-              echo "✓ Environment file copied successfully"
             elif [ -f "deploy/.env.server.example" ]; then
-              echo "⚠ Using .env.server.example as fallback"
               cp deploy/.env.server.example deploy/.env.server
             else
-              echo "✗ No environment file found in deploy/"
+              echo "ERROR: no deploy environment file found"
               exit 1
             fi
-            
-            echo "Repository setup completed successfully!"
-            echo "Starting Docker operations..."
-            
-            # Use docker-compose (with hyphen) for older Docker versions
+
             compose() {
-              if command -v docker-compose >/dev/null 2>&1; then
+              if docker compose version >/dev/null 2>&1; then
+                docker compose "$@"
+              elif command -v docker-compose >/dev/null 2>&1; then
                 docker-compose "$@"
               else
-                docker compose "$@"
+                echo "ERROR: neither 'docker compose' nor 'docker-compose' is available"
+                exit 1
               fi
             }
-            
+
             echo "Starting postgres..."
             compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
-            echo "Waiting for postgres to be ready..."
-            sleep 30
-            
-            echo "Building images on server..."
-            export DOCKER_BUILDKIT=0
-            export COMPOSE_DOCKER_CLI_BUILD=0
-            
-            # Build backend first to ensure Prisma client is generated
-            echo "Building backend image..."
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build backend
-            
-            echo "Building other images..."
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build worker frontend migrator
-            
-            echo "Running database migrations..."
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
-            
-            echo "Starting all services..."
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
-            
-            echo "Deployment status:"
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
-            
-            echo "Recent logs:"
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=50 backend worker || true
-            
-            echo "Deployment completed successfully!"
-            
-            # Use docker-compose (with hyphen) for older Docker versions
-            compose() {
-              if command -v docker-compose >/dev/null 2>&1; then
-                docker-compose "$@"
-              else
-                docker compose "$@"
-              fi
-            }
-            
-            echo "Starting deployment with server-side build..."
-            
-            # Start postgres first
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d postgres
-            echo "Waiting for postgres to be ready..."
-            sleep 30
-            
-            # Build all images on server
+            sleep 25
+
             echo "Building images on server..."
             export DOCKER_BUILDKIT=0
             export COMPOSE_DOCKER_CLI_BUILD=0
             compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server build backend worker frontend migrator
-            
-            # Run migrations
+
             echo "Running database migrations..."
             compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server --profile tools run --rm migrator
-            
-            # Work around docker-compose 1.29.2 ContainerConfig bug:
-            # Remove old containers before recreating to avoid KeyError: 'ContainerConfig'
-            echo "Removing old containers before recreation..."
-            docker rm -f edunurse-backend edunurse-worker edunurse-frontend 2>/dev/null || true
-            
-            # Start all services
-            echo "Starting all services..."
+
+            echo "Cleaning non-database containers before rollout..."
+            # Keep database container/data. Remove app containers from current and legacy compose naming.
+            NON_DB_CONTAINERS="$(
+              (
+                docker ps -aq --filter "name=edunurse-" || true
+                docker ps -aq --filter "name=deploy_" || true
+              ) | sort -u
+            )"
+            if [ -n "${NON_DB_CONTAINERS:-}" ]; then
+              for c in $NON_DB_CONTAINERS; do
+                name="$(docker inspect --format '{{.Name}}' "$c" | sed 's#^/##')"
+                case "$name" in
+                  edunurse-postgres|*postgres*)
+                    echo "Keeping database container: $name"
+                    ;;
+                  *)
+                    echo "Removing container: $name"
+                    docker rm -f "$c" >/dev/null 2>&1 || true
+                    ;;
+                esac
+              done
+            fi
+
+            # Also clear compose service containers for this stack (safe no-op if absent)
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server rm -sf backend worker frontend migrator || true
+
+            echo "Starting services..."
             compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server up -d backend worker frontend
-            
-            # Show status
+
             echo "Deployment status:"
             compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server ps
-            
+
             echo "Recent logs:"
-            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=50 backend worker || true
-            
-            echo "Deployment completed successfully!"
+            compose -f deploy/docker-compose.server.yml --env-file deploy/.env.server logs --tail=80 backend worker || true
