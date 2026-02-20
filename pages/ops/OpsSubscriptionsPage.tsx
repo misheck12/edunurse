@@ -92,6 +92,27 @@ const OpsSubscriptionsPage: React.FC = () => {
     }
   };
 
+  const updateSubscriptionStatus = async (
+    subscription: AdminSubscription,
+    newStatus: "active" | "canceled"
+  ) => {
+    setError(null);
+    setNotice(null);
+    try {
+      await updateAdminSubscription(subscription.id, {
+        status: newStatus,
+      });
+      setNotice(
+        `Subscription ${newStatus === "active" ? "activated" : "deactivated"} for ${subscription.user?.email ?? subscription.userId}`
+      );
+      await loadData();
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error ? updateError.message : "Failed to update subscription status.",
+      );
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
@@ -165,30 +186,65 @@ const OpsSubscriptionsPage: React.FC = () => {
           {subscriptions.length > 0 && (
             <div className="space-y-2">
               {subscriptions.map((subscription) => (
-                <div key={subscription.id} className="rounded-lg border border-slate-200 px-3 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-medium text-slate-800">
-                        {subscription.user?.email ?? subscription.userId}
+                <div key={subscription.id} className="rounded-lg border border-slate-200 px-4 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="text-sm font-medium text-slate-800 truncate">
+                          {subscription.user?.email ?? subscription.userId}
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            subscription.status === "active"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : subscription.status === "canceled"
+                              ? "bg-red-100 text-red-700"
+                              : subscription.status === "trialing"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {subscription.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 mb-2">
+                        Plan: {subscription.plan?.name ?? subscription.planId}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {subscription.plan?.name ?? subscription.planId}
+                        Cancel at period end: {subscription.cancelAtPeriodEnd ? "Yes" : "No"}
                       </div>
+                      {subscription.currentPeriodStart && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          Period: {new Date(subscription.currentPeriodStart).toLocaleDateString()} -{" "}
+                          {subscription.currentPeriodEnd
+                            ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
+                            : "N/A"}
+                        </div>
+                      )}
                     </div>
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                      {subscription.status}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-xs text-slate-500">
-                    cancel_at_period_end: {subscription.cancelAtPeriodEnd ? "true" : "false"}
-                  </div>
-                  <div className="mt-2">
-                    <button
-                      onClick={() => void toggleCancelAtPeriodEnd(subscription)}
-                      className="rounded border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50"
-                    >
-                      Toggle Cancel At Period End
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      {subscription.status === "active" ? (
+                        <button
+                          onClick={() => void updateSubscriptionStatus(subscription, "canceled")}
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 whitespace-nowrap"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => void updateSubscriptionStatus(subscription, "active")}
+                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 whitespace-nowrap"
+                        >
+                          Activate
+                        </button>
+                      )}
+                      <button
+                        onClick={() => void toggleCancelAtPeriodEnd(subscription)}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 whitespace-nowrap"
+                      >
+                        Toggle Auto-Cancel
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

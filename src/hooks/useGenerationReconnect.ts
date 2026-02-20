@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMyDocuments } from "../services/backendApi";
+import { listDocuments } from "../services/backendApi";
 
 interface InProgressGeneration {
   documentId: string;
@@ -18,7 +18,7 @@ export function useGenerationReconnect() {
   useEffect(() => {
     const checkForInProgressGenerations = async () => {
       try {
-        const documents = await getMyDocuments({ page: 1, pageSize: 50 });
+        const documents = await listDocuments({ page: 1, pageSize: 50 });
         
         // Find documents with running or queued generations
         for (const doc of documents.items) {

@@ -20,6 +20,7 @@ import OpsUsersPage from './pages/ops/OpsUsersPage';
 import OpsConnectorsPage from './pages/ops/OpsConnectorsPage';
 import OpsServicesPage from './pages/ops/OpsServicesPage';
 import OpsSubscriptionsPage from './pages/ops/OpsSubscriptionsPage';
+import OpsPlansPage from './pages/ops/OpsPlansPage';
 import OpsTransactionsPage from './pages/ops/OpsTransactionsPage';
 import OpsAiPage from './pages/ops/OpsAiPage';
 import OpsSyllabusPage from './pages/ops/OpsSyllabusPage';
@@ -87,6 +88,14 @@ const OpsShell: React.FC = () => (
         element={
           <RequireAdmin>
             <OpsSubscriptionsPage />
+          </RequireAdmin>
+        }
+      />
+      <Route
+        path="/ops/plans"
+        element={
+          <RequireAdmin>
+            <OpsPlansPage />
           </RequireAdmin>
         }
       />

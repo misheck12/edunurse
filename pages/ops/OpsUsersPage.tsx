@@ -187,8 +187,16 @@ const OpsUsersPage: React.FC = () => {
                         <div className="text-xs text-slate-500">{user.email}</div>
                       </td>
                       <td className="py-3 pr-4 text-slate-600">{user.role}</td>
-                      <td className="py-3 pr-4 text-slate-600">
-                        {user.isActive ? "active" : "inactive"}
+                      <td className="py-3 pr-4">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            user.isActive
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {user.isActive ? "Active" : "Inactive"}
+                        </span>
                       </td>
                       <td className="py-3 pr-4 text-slate-600">
                         {user.subscriptions?.[0]?.plan?.name ?? "n/a"}
@@ -196,16 +204,25 @@ const OpsUsersPage: React.FC = () => {
                       <td className="py-3 text-right space-x-2">
                         <button
                           onClick={() => void toggleRole(user)}
-                          className="rounded border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50"
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
                         >
                           Make {user.role === "admin" ? "Educator" : "Admin"}
                         </button>
-                        <button
-                          onClick={() => void toggleActive(user)}
-                          className="rounded border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50"
-                        >
-                          {user.isActive ? "Deactivate" : "Activate"}
-                        </button>
+                        {user.isActive ? (
+                          <button
+                            onClick={() => void toggleActive(user)}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => void toggleActive(user)}
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                          >
+                            Activate
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
