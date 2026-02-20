@@ -40,7 +40,7 @@ const OpsLayout: React.FC<OpsLayoutProps> = ({ children }) => {
 
   // Redirect to login if not authenticated or not an admin (but not on login page)
   useEffect(() => {
-    if (!isLoginPage && (!user || user.role !== "superadmin")) {
+    if (!isLoginPage && (!user || user.role !== "admin")) {
       navigate("/ops/login", { replace: true });
     }
   }, [user, navigate, isLoginPage]);
@@ -51,7 +51,7 @@ const OpsLayout: React.FC<OpsLayoutProps> = ({ children }) => {
   }
 
   // Don't render layout until auth check is complete
-  if (!user || user.role !== "superadmin") {
+  if (!user || user.role !== "admin") {
     return null;
   }
 
