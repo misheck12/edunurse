@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -37,6 +37,18 @@ const OpsLayout: React.FC<OpsLayoutProps> = ({ children }) => {
 
   if (location.pathname === "/ops/login") {
     return <>{children}</>;
+  }
+
+  // Redirect to login if not authenticated or not an admin
+  useEffect(() => {
+    if (!user || user.role !== "superadmin") {
+      navigate("/ops/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  // Don't render layout until auth check is complete
+  if (!user || user.role !== "superadmin") {
+    return null;
   }
 
   const handleSignOut = () => {

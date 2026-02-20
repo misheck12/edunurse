@@ -106,12 +106,6 @@ const ClientSignIn: React.FC = () => {
             Create one
           </Link>
         </div>
-        <div className="mt-2 text-sm text-slate-600">
-          Superadmin?{" "}
-          <Link to="/ops/login" className="font-medium text-blue-600 hover:underline">
-            Open ops login
-          </Link>
-        </div>
       </div>
     </div>
   );
