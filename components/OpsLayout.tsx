@@ -33,21 +33,33 @@ const navItems = [
 const OpsLayout: React.FC<OpsLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
 
   // Allow login page to render without auth check
   const isLoginPage = location.pathname === "/ops/login";
 
   // Redirect to login if not authenticated or not an admin (but not on login page)
   useEffect(() => {
-    if (!isLoginPage && (!user || user.role !== "admin")) {
+    if (!isLoginPage && !isLoading && (!user || user.role !== "admin")) {
       navigate("/ops/login", { replace: true });
     }
-  }, [user, navigate, isLoginPage]);
+  }, [user, isLoading, navigate, isLoginPage]);
 
   // Render login page without layout
   if (isLoginPage) {
     return <>{children}</>;
+  }
+
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#f2f4f7] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+          <p className="mt-2 text-sm text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   // Don't render layout until auth check is complete
