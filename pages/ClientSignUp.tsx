@@ -10,6 +10,7 @@ const ClientSignUp: React.FC = () => {
     fullName: "",
     email: "",
     phoneNumber: "",
+    nrc: "",
     school: "",
     studentNumber: "",
     information: "",
@@ -38,6 +39,7 @@ const ClientSignUp: React.FC = () => {
         fullName: form.fullName,
         email: form.email,
         phoneNumber: form.phoneNumber,
+        nrc: form.nrc,
         school: form.school,
         studentNumber: form.studentNumber,
         information: form.information,
@@ -107,6 +109,23 @@ const ClientSignUp: React.FC = () => {
               onChange={(event) => setField("phoneNumber", event.target.value)}
               required
               disabled={isSubmitting}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">
+              NRC Number
+            </span>
+            <input
+              type="text"
+              value={form.nrc}
+              onChange={(event) => setField("nrc", event.target.value)}
+              placeholder="123456/12/1"
+              required
+              disabled={isSubmitting}
+              pattern="\d{6}/\d{2}/\d{1}"
+              title="NRC must be in format: 123456/12/1"
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>

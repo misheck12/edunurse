@@ -367,6 +367,7 @@ export interface ClientSignupInput {
   password: string;
   fullName: string;
   phoneNumber: string;
+  nrc: string;
   school: string;
   studentNumber: string;
   information: string;
