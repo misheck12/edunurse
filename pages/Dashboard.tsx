@@ -4,9 +4,12 @@ import { Search, Plus, BookOpen, Activity, ClipboardList, Thermometer, Calendar,
 import { RECENT_DOCS } from '../constants';
 import { UpgradeBanner } from '../src/components/UpgradeBanner';
 import { PaymentModal } from '../src/components/PaymentModal';
+import { GenerationReconnectModal } from '../components/GenerationReconnectModal';
+import { useGenerationReconnect } from '../src/hooks/useGenerationReconnect';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { inProgressGeneration, dismissInProgressGeneration } = useGenerationReconnect();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const ActionCard = ({ icon: Icon, title, desc, color }: { icon: any, title: string, desc: string, color: string }) => (
@@ -23,7 +26,16 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="mx-auto max-w-7xl p-4 sm:p-6 md:p-10">
+    <>
+      {inProgressGeneration && (
+        <GenerationReconnectModal
+          documentId={inProgressGeneration.documentId}
+          documentName={inProgressGeneration.documentName}
+          status={inProgressGeneration.status}
+          onDismiss={dismissInProgressGeneration}
+        />
+      )}
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 md:p-10">
       {/* Upgrade Banner */}
       <UpgradeBanner
         onUpgradeClick={() => setShowPaymentModal(true)}
@@ -126,6 +138,7 @@ const Dashboard: React.FC = () => {
         }}
       />
     </div>
+    </>
   );
 };
 
