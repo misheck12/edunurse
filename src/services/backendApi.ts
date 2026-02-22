@@ -856,7 +856,11 @@ export async function getExportJob(exportJobId: string) {
   return request<ExportJobResponse>(`/exports/${exportJobId}`);
 }
 
-export async function downloadExportFile(exportJobId: string, format: "pdf" | "docx" | "pptx") {
+export async function downloadExportFile(
+  exportJobId: string, 
+  format: "pdf" | "docx" | "pptx",
+  onProgress?: (progress: number) => void
+) {
   let resolvedExportJobId = exportJobId;
   if (isLocalExportJobId(exportJobId)) {
     if (typeof navigator !== "undefined" && navigator.onLine) {
@@ -871,11 +875,99 @@ export async function downloadExportFile(exportJobId: string, format: "pdf" | "d
     resolvedExportJobId = localJob.remoteJobId;
   }
 
-  const response = await fetch(`${API_BASE_URL}/exports/${resolvedExportJobId}/download`, {
+  const downloadUrl = `${API_BASE_URL}/exports/${resolvedExportJobId}/download`;
+  const authHeaders = buildAuthHeaders("default");
+  
+  // Check if we're on mobile/PWA
+  const isMobile = typeof navigator !== "undefined" && 
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isPWA = typeof window !== "undefined" && 
+    (window.matchMedia('(display-mode: standalone)').matches || 
+    (window.navigator as any).standalone === true);
+
+  // For mobile/PWA, use direct download for better performance
+  if (isMobile || isPWA) {
+    // Create a temporary link and trigger download
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `edunurse-export-${resolvedExportJobId}.${format}`;
+    
+    // Add auth header via fetch and create blob URL
+    try {
+      const response = await fetch(downloadUrl, {
+        method: "GET",
+        headers: authHeaders,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
+      }
+
+      // Get content length for progress
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      // Read stream with progress
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let receivedLength = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        chunks.push(value);
+        receivedLength += value.length;
+        
+        // Report progress
+        if (onProgress && total > 0) {
+          onProgress(Math.round((receivedLength / total) * 100));
+        }
+      }
+
+      // Combine chunks into single array
+      const chunksAll = new Uint8Array(receivedLength);
+      let position = 0;
+      for (const chunk of chunks) {
+        chunksAll.set(chunk, position);
+        position += chunk.length;
+      }
+
+      // Create blob and download
+      const blob = new Blob([chunksAll], {
+        type: format === "pdf" 
+          ? "application/pdf" 
+          : format === "docx"
+          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          : "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      });
+      
+      const objectUrl = window.URL.createObjectURL(blob);
+      link.href = objectUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+      
+      if (onProgress) {
+        onProgress(100);
+      }
+    } catch (error) {
+      console.error('Mobile download error:', error);
+      throw error;
+    }
+    return;
+  }
+
+  // Desktop: Use standard blob download
+  const response = await fetch(downloadUrl, {
     method: "GET",
-    headers: {
-      ...buildAuthHeaders("default"),
-    },
+    headers: authHeaders,
   });
 
   if (!response.ok) {
@@ -898,6 +990,10 @@ export async function downloadExportFile(exportJobId: string, format: "pdf" | "d
   link.click();
   document.body.removeChild(link);
   window.URL.revokeObjectURL(objectUrl);
+  
+  if (onProgress) {
+    onProgress(100);
+  }
 }
 
 type AiProviderName = "azure" | "gemini" | "deepseek";
