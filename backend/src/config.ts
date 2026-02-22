@@ -90,7 +90,16 @@ const EnvSchema = z.object({
     .default("true")
     .transform((value) => value.trim().toLowerCase() === "true"),
   EMAIL_FROM: z.string().default("noreply@edunurse.com"),
+  EMAIL_FROM_NAME: z.string().default("EduNurse"),
   SUPPORT_EMAIL: z.string().default("support@edunurse.com"),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .string()
+    .default("false")
+    .transform((value) => value.trim().toLowerCase() === "true"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   WHATSAPP_GROUP_LINK: z.string().optional(),
 });

@@ -100,6 +100,15 @@ const ClientSignIn: React.FC = () => {
           </button>
         </form>
 
+        <div className="mt-4 text-center">
+          <Link
+            to="/forgot-password"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         <div className="mt-4 text-sm text-slate-600">
           Need an account?{" "}
           <Link to="/signup" className="font-medium text-blue-600 hover:underline">

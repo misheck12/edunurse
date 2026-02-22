@@ -136,6 +136,11 @@ model User {
   profileCompleted  Boolean           @default(false) @map("profile_completed")
   role              UserRole          @default(educator)
   isActive          Boolean           @default(true) @map("is_active")
+  emailVerified     Boolean           @default(false) @map("email_verified")
+  emailVerificationToken String?      @unique @map("email_verification_token")
+  emailVerificationExpiry DateTime?   @map("email_verification_expiry") @db.Timestamptz(6)
+  passwordResetToken String?          @unique @map("password_reset_token")
+  passwordResetExpiry DateTime?       @map("password_reset_expiry") @db.Timestamptz(6)
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   preferences       UserPreference?
@@ -662,4 +667,18 @@ model ExportJob {
   @@index([userId, createdAt(sort: Desc)])
   @@index([documentId, status])
   @@map("export_jobs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       String?
+  category    String   @default("general")
+  description String?
+  isSecret    Boolean  @default(false) @map("is_secret")
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  @@index([category])
+  @@map("system_settings")
 }

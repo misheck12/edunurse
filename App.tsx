@@ -5,6 +5,9 @@ import OpsLayout from './components/OpsLayout';
 import Login from './pages/Login';
 import ClientSignIn from './pages/ClientSignIn';
 import ClientSignUp from './pages/ClientSignUp';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import CreateWizard from './pages/CreateWizard';
 import Editor from './pages/Editor';
@@ -24,6 +27,7 @@ import OpsPlansPage from './pages/ops/OpsPlansPage';
 import OpsTransactionsPage from './pages/ops/OpsTransactionsPage';
 import OpsAiPage from './pages/ops/OpsAiPage';
 import OpsSyllabusPage from './pages/ops/OpsSyllabusPage';
+import OpsSettingsPage from './pages/ops/OpsSettingsPage';
 import { DocumentProvider } from './src/context/DocumentContext';
 import { AuthProvider } from './src/context/AuthContext';
 import RequireAdmin from './src/components/auth/RequireAdmin';
@@ -115,6 +119,14 @@ const OpsShell: React.FC = () => (
           </RequireAdmin>
         }
       />
+      <Route
+        path="/ops/settings"
+        element={
+          <RequireAdmin>
+            <OpsSettingsPage />
+          </RequireAdmin>
+        }
+      />
       <Route path="/ops/*" element={<Navigate to="/ops" replace />} />
     </Routes>
   </OpsLayout>
@@ -144,6 +156,9 @@ const ClientAuthShell: React.FC = () => (
   <Routes>
     <Route path="/signin" element={<ClientSignIn />} />
     <Route path="/signup" element={<ClientSignUp />} />
+    <Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path="/verify-email" element={<VerifyEmail />} />
     <Route path="/login" element={<Navigate to="/signin" replace />} />
     <Route path="*" element={<Navigate to="/signin" replace />} />
   </Routes>

@@ -9,6 +9,7 @@ import {
   LogOut,
   Package,
   ReceiptText,
+  Settings,
   SlidersHorizontal,
   ShieldCheck,
   Users,
@@ -30,6 +31,7 @@ const navItems = [
   { to: "/ops/subscriptions", label: "Subscriptions", icon: CreditCard },
   { to: "/ops/transactions", label: "Transactions", icon: ReceiptText },
   { to: "/ops/ai", label: "AI Health", icon: BrainCircuit },
+  { to: "/ops/settings", label: "Settings", icon: Settings },
 ];
 
 const OpsLayout: React.FC<OpsLayoutProps> = ({ children }) => {
@@ -43,7 +45,11 @@ const OpsLayout: React.FC<OpsLayoutProps> = ({ children }) => {
   // Redirect to login if not authenticated or not an admin (but not on login page)
   useEffect(() => {
     if (!isLoginPage && !isLoading && (!user || user.role !== "admin")) {
-      navigate("/ops/login", { replace: true });
+      // Session expired or user not authorized
+      navigate("/ops/login", { 
+        replace: true,
+        state: { message: user ? "Access denied. Admin role required." : "Session expired. Please sign in again." }
+      });
     }
   }, [user, isLoading, navigate, isLoginPage]);
 

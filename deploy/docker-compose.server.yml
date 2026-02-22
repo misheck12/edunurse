@@ -40,7 +40,13 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-https://app.example.com}
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-EduNurse}
       SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@example.com}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       WHATSAPP_GROUP_LINK: ${WHATSAPP_GROUP_LINK:-}
       LLM_PROVIDER_PRIORITY: ${LLM_PROVIDER_PRIORITY:-azure,gemini,deepseek}
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}

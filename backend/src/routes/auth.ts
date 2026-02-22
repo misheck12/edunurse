@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import crypto from "crypto";
 import { env } from "../config.js";
 import { hashPassword, verifyPassword } from "../services/auth-password.js";
 import { signAuthToken } from "../services/auth-token.js";
@@ -121,6 +122,10 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       );
     }
 
+    // Generate email verification token
+    const verificationToken = crypto.randomUUID();
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const createdUser = await app.prisma.user.create({
       data: {
         email,
@@ -134,15 +139,29 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         profileCompleted: true, // All required fields provided during signup
         role: "educator",
         isActive: true,
+        emailVerified: false,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: verificationExpiry,
       },
       select: authUserSelect,
     });
 
+    // Send welcome email
     await sendWelcomeEmail(createdUser.email, {
       userName: createdUser.fullName || "Educator",
       freeGenerations: 2,
     }).catch((err) => {
       app.log.error({ error: err }, "Failed to send welcome email");
+    });
+
+    // Send verification email
+    const { sendEmailVerificationEmail } = await import("../services/email.js");
+    await sendEmailVerificationEmail(
+      createdUser.email,
+      createdUser.fullName || "User",
+      verificationToken
+    ).catch((err) => {
+      app.log.error({ error: err }, "Failed to send verification email");
     });
 
     const accessToken = signAuthToken({
@@ -196,6 +215,163 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       expiresInSeconds: env.AUTH_TOKEN_TTL_SECONDS,
       user: safeUser,
     };
+  });
+
+  // Request email verification
+  app.post("/request-verification", async (request, reply) => {
+    const { email } = z.object({ email: z.string().email() }).parse(request.body);
+
+    const user = await app.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true, email: true, fullName: true, emailVerified: true },
+    });
+
+    if (!user) {
+      // Don't reveal if email exists
+      return reply.code(200).send({ message: "If the email exists, a verification link has been sent." });
+    }
+
+    if (user.emailVerified) {
+      return reply.code(400).send({ message: "Email is already verified." });
+    }
+
+    // Generate verification token
+    const verificationToken = crypto.randomUUID();
+    const expiryDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await app.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: expiryDate,
+      },
+    });
+
+    // Send verification email
+    const { sendEmailVerificationEmail } = await import("../services/email.js");
+    await sendEmailVerificationEmail(
+      user.email,
+      user.fullName || "User",
+      verificationToken
+    );
+
+    return reply.code(200).send({ message: "Verification email sent." });
+  });
+
+  // Verify email
+  app.post("/verify-email", async (request, reply) => {
+    const { token } = z.object({ token: z.string() }).parse(request.body);
+
+    const user = await app.prisma.user.findUnique({
+      where: { emailVerificationToken: token },
+      select: {
+        id: true,
+        email: true,
+        emailVerificationExpiry: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user) {
+      throw app.httpErrors.badRequest("Invalid or expired verification token.");
+    }
+
+    if (user.emailVerified) {
+      return reply.code(200).send({ message: "Email already verified." });
+    }
+
+    if (!user.emailVerificationExpiry || user.emailVerificationExpiry < new Date()) {
+      throw app.httpErrors.badRequest("Verification token has expired. Request a new one.");
+    }
+
+    // Mark email as verified
+    await app.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null,
+      },
+    });
+
+    return reply.code(200).send({ message: "Email verified successfully!" });
+  });
+
+  // Request password reset
+  app.post("/request-password-reset", async (request, reply) => {
+    const { email } = z.object({ email: z.string().email() }).parse(request.body);
+
+    const user = await app.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true, email: true, fullName: true },
+    });
+
+    if (!user) {
+      // Don't reveal if email exists
+      return reply.code(200).send({ message: "If the email exists, a password reset link has been sent." });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomUUID();
+    const expiryDate = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await app.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetToken,
+        passwordResetExpiry: expiryDate,
+      },
+    });
+
+    // Send password reset email
+    const { sendPasswordResetEmail } = await import("../services/email.js");
+    await sendPasswordResetEmail(
+      user.email,
+      user.fullName || "User",
+      resetToken
+    );
+
+    return reply.code(200).send({ message: "Password reset email sent." });
+  });
+
+  // Reset password
+  app.post("/reset-password", async (request, reply) => {
+    const { token, newPassword } = z.object({
+      token: z.string(),
+      newPassword: z.string().min(8),
+    }).parse(request.body);
+
+    const user = await app.prisma.user.findUnique({
+      where: { passwordResetToken: token },
+      select: {
+        id: true,
+        email: true,
+        passwordResetExpiry: true,
+      },
+    });
+
+    if (!user) {
+      throw app.httpErrors.badRequest("Invalid or expired reset token.");
+    }
+
+    if (!user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
+      throw app.httpErrors.badRequest("Reset token has expired. Request a new one.");
+    }
+
+    // Hash new password
+    const passwordHash = await hashPassword(newPassword);
+
+    // Update password and clear reset token
+    await app.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+      },
+    });
+
+    return reply.code(200).send({ message: "Password reset successfully!" });
   });
 };
 

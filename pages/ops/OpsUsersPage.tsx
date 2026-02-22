@@ -4,7 +4,9 @@ import {
   createAdminUser,
   listAdminUsers,
   updateAdminUser,
+  resetUserPassword,
 } from "../../src/services/backendApi";
+import { Key, Edit2 } from "lucide-react";
 
 const OpsUsersPage: React.FC = () => {
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
@@ -17,6 +19,17 @@ const OpsUsersPage: React.FC = () => {
   const [newFullName, setNewFullName] = useState("");
   const [newRole, setNewRole] = useState<"educator" | "admin">("educator");
   const [creating, setCreating] = useState(false);
+
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resettingPassword, setResettingPassword] = useState(false);
+
+  const [editingUser, setEditingUser] = useState<AdminUserListItem | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editPhoneNumber, setEditPhoneNumber] = useState("");
+  const [editSchool, setEditSchool] = useState("");
+  const [editStudentNumber, setEditStudentNumber] = useState("");
+  const [updatingUser, setUpdatingUser] = useState(false);
 
   const loadUsers = async (searchValue?: string) => {
     setLoading(true);
@@ -87,6 +100,55 @@ const OpsUsersPage: React.FC = () => {
       await loadUsers(search);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : "Failed to update status.");
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUserId || !newPassword) return;
+
+    setResettingPassword(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const response = await resetUserPassword(resetPasswordUserId, newPassword);
+      setNotice(response.message);
+      setResetPasswordUserId(null);
+      setNewPassword("");
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "Failed to reset password.");
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const startEditUser = (user: AdminUserListItem) => {
+    setEditingUser(user);
+    setEditFullName(user.fullName || "");
+    setEditPhoneNumber(user.phoneNumber || "");
+    setEditSchool(user.school || "");
+    setEditStudentNumber(user.studentNumber || "");
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+
+    setUpdatingUser(true);
+    setNotice(null);
+    setError(null);
+    try {
+      await updateAdminUser(editingUser.id, {
+        fullName: editFullName.trim() || undefined,
+        phoneNumber: editPhoneNumber.trim() || undefined,
+        school: editSchool.trim() || undefined,
+        studentNumber: editStudentNumber.trim() || undefined,
+      });
+      setNotice(`User ${editingUser.email} updated successfully.`);
+      setEditingUser(null);
+      await loadUsers(search);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Failed to update user.");
+    } finally {
+      setUpdatingUser(false);
     }
   };
 
@@ -203,6 +265,25 @@ const OpsUsersPage: React.FC = () => {
                       </td>
                       <td className="py-3 text-right space-x-2">
                         <button
+                          onClick={() => startEditUser(user)}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                          title="Edit User"
+                        >
+                          <Edit2 size={14} className="inline mr-1" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setResetPasswordUserId(user.id);
+                            setNewPassword("");
+                          }}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                          title="Reset Password"
+                        >
+                          <Key size={14} className="inline mr-1" />
+                          Reset Password
+                        </button>
+                        <button
                           onClick={() => void toggleRole(user)}
                           className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
                         >
@@ -232,6 +313,129 @@ const OpsUsersPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Password Reset Modal */}
+      {resetPasswordUserId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Reset User Password</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Enter a new password for{" "}
+              <strong>{users.find((u) => u.id === resetPasswordUserId)?.email}</strong>
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  New Password (min 8 characters)
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                  minLength={8}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setResetPasswordUserId(null);
+                    setNewPassword("");
+                  }}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleResetPassword()}
+                  disabled={resettingPassword || newPassword.length < 8}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {resettingPassword ? "Resetting..." : "Reset Password"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Edit User Information</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Editing: <strong>{editingUser.email}</strong>
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  placeholder="Enter full name"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={editPhoneNumber}
+                  onChange={(e) => setEditPhoneNumber(e.target.value)}
+                  placeholder="Enter phone number"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  School/Institution
+                </label>
+                <input
+                  type="text"
+                  value={editSchool}
+                  onChange={(e) => setEditSchool(e.target.value)}
+                  placeholder="Enter school or institution"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Student Number
+                </label>
+                <input
+                  type="text"
+                  value={editStudentNumber}
+                  onChange={(e) => setEditStudentNumber(e.target.value)}
+                  placeholder="Enter student number"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  onClick={() => setEditingUser(null)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleUpdateUser()}
+                  disabled={updatingUser}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {updatingUser ? "Updating..." : "Update User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

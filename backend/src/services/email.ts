@@ -1,9 +1,100 @@
 /**
  * Email Service
- * Handles all email notifications using a configurable provider
+ * Handles all email notifications using Microsoft 365/Outlook SMTP or other providers
  */
 
 import { env } from "../config.js";
+import nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
+import { PrismaClient } from "@prisma/client";
+import { getSetting } from "./system-settings.js";
+
+let transporter: Transporter | null = null;
+let prismaClient: PrismaClient | null = null;
+
+/**
+ * Set Prisma client for settings lookup
+ */
+export function setEmailPrismaClient(prisma: PrismaClient) {
+  prismaClient = prisma;
+}
+
+/**
+ * Get email configuration from database or environment
+ */
+async function getEmailConfig() {
+  if (!prismaClient) {
+    // Fallback to environment variables
+    return {
+      enabled: env.EMAIL_ENABLED,
+      from: env.EMAIL_FROM,
+      fromName: env.EMAIL_FROM_NAME || "EduNurse",
+      smtpHost: env.SMTP_HOST,
+      smtpPort: env.SMTP_PORT,
+      smtpSecure: env.SMTP_SECURE,
+      smtpUser: env.SMTP_USER,
+      smtpPass: env.SMTP_PASS,
+    };
+  }
+
+  // Get from database settings
+  const [enabled, from, fromName, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass] = await Promise.all([
+    getSetting(prismaClient, "EMAIL_ENABLED"),
+    getSetting(prismaClient, "EMAIL_FROM"),
+    getSetting(prismaClient, "EMAIL_FROM_NAME"),
+    getSetting(prismaClient, "SMTP_HOST"),
+    getSetting(prismaClient, "SMTP_PORT"),
+    getSetting(prismaClient, "SMTP_SECURE"),
+    getSetting(prismaClient, "SMTP_USER"),
+    getSetting(prismaClient, "SMTP_PASS"),
+  ]);
+
+  return {
+    enabled: enabled === "true",
+    from: from || env.EMAIL_FROM,
+    fromName: fromName || env.EMAIL_FROM_NAME || "EduNurse",
+    smtpHost: smtpHost || env.SMTP_HOST,
+    smtpPort: parseInt(smtpPort || String(env.SMTP_PORT)),
+    smtpSecure: (smtpSecure || String(env.SMTP_SECURE)) === "true",
+    smtpUser: smtpUser || env.SMTP_USER,
+    smtpPass: smtpPass || env.SMTP_PASS,
+  };
+}
+
+/**
+ * Initialize email transporter based on configuration
+ */
+async function getTransporter(): Promise<Transporter | null> {
+  const config = await getEmailConfig();
+
+  if (!config.enabled) {
+    return null;
+  }
+
+  // Reset transporter if configuration might have changed
+  transporter = null;
+
+  // Microsoft 365 / Outlook SMTP configuration
+  if (config.smtpHost && config.smtpUser && config.smtpPass) {
+    transporter = nodemailer.createTransport({
+      host: config.smtpHost,
+      port: config.smtpPort,
+      secure: config.smtpSecure, // true for 465, false for other ports
+      auth: {
+        user: config.smtpUser,
+        pass: config.smtpPass,
+      },
+      tls: {
+        ciphers: "SSLv3",
+        rejectUnauthorized: false, // For self-signed certificates
+      },
+    });
+
+    console.log(`[Email] Initialized SMTP transporter: ${config.smtpHost}:${config.smtpPort}`);
+  }
+
+  return transporter;
+}
 
 export interface EmailOptions {
   to: string;
@@ -53,25 +144,39 @@ async function sendEmail(options: EmailOptions): Promise<void> {
     return;
   }
 
-  // For now, log emails. In production, integrate with SendGrid, AWS SES, etc.
-  if (env.NODE_ENV === "development") {
+  const transport = await getTransporter();
+
+  // Development mode - log emails
+  if (env.NODE_ENV === "development" && !transport) {
     console.log("\n=== EMAIL ===");
     console.log("To:", options.to);
     console.log("Subject:", options.subject);
-    console.log("Body:", options.text || options.html);
+    console.log("Body:", options.text || options.html.substring(0, 200) + "...");
     console.log("=============\n");
     return;
   }
 
-  // TODO: Integrate with actual email provider
-  // Example with SendGrid:
-  // await sgMail.send({
-  //   to: options.to,
-  //   from: env.EMAIL_FROM,
-  //   subject: options.subject,
-  //   html: options.html,
-  //   text: options.text
-  // });
+  // Send via SMTP (Microsoft 365/Outlook or other)
+  if (transport) {
+    try {
+      const info = await transport.sendMail({
+        from: `"${env.EMAIL_FROM_NAME || 'EduNurse'}" <${env.EMAIL_FROM}>`,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+      });
+
+      console.log(`[Email] Sent to ${options.to}: ${info.messageId}`);
+    } catch (error) {
+      console.error("[Email] Failed to send:", error);
+      throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  // Fallback: log warning if no provider configured
+  console.warn("[Email] No email provider configured. Email not sent:", options.subject);
 }
 
 /**
@@ -498,5 +603,148 @@ export async function sendPaymentFailedEmail(
     subject: "❌ Payment Failed - EduNurse",
     html,
     text: `Payment Failed\n\nHi ${userName},\n\nWe were unable to process your payment.\n\nReason: ${reason}\n\nTry again: ${env.FRONTEND_URL}/subscribe\n\nThe EduNurse Team`,
+  });
+}
+
+/**
+ * Send email verification email
+ */
+export async function sendEmailVerificationEmail(
+  email: string,
+  userName: string,
+  verificationToken: string
+): Promise<void> {
+  const verificationUrl = `${env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+        .cta-button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .token-box { background: white; border: 2px dashed #cbd5e1; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; font-family: monospace; font-size: 18px; letter-spacing: 2px; }
+        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>📧 Verify Your Email</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${userName},</p>
+          
+          <p>Thank you for signing up for EduNurse! Please verify your email address to activate your account.</p>
+          
+          <p style="text-align: center;">
+            <a href="${verificationUrl}" class="cta-button">
+              Verify Email Address
+            </a>
+          </p>
+          
+          <p style="font-size: 12px; color: #6b7280;">
+            Or copy and paste this link into your browser:<br>
+            <a href="${verificationUrl}" style="color: #2563eb; word-break: break-all;">${verificationUrl}</a>
+          </p>
+          
+          <p style="font-size: 12px; color: #6b7280;">
+            This verification link will expire in 24 hours.
+          </p>
+          
+          <p>If you didn't create an account with EduNurse, you can safely ignore this email.</p>
+          
+          <p><strong>The EduNurse Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>EduNurse - AI-Powered Nursing Education</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: "📧 Verify Your Email - EduNurse",
+    html,
+    text: `Verify Your Email\n\nHi ${userName},\n\nPlease verify your email address by clicking this link:\n${verificationUrl}\n\nThis link expires in 24 hours.\n\nThe EduNurse Team`,
+  });
+}
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(
+  email: string,
+  userName: string,
+  resetToken: string
+): Promise<void> {
+  const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f59e0b; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+        .cta-button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .warning-box { background: #fef3c7; border: 2px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🔐 Reset Your Password</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${userName},</p>
+          
+          <p>We received a request to reset your password for your EduNurse account.</p>
+          
+          <p style="text-align: center;">
+            <a href="${resetUrl}" class="cta-button">
+              Reset Password
+            </a>
+          </p>
+          
+          <p style="font-size: 12px; color: #6b7280;">
+            Or copy and paste this link into your browser:<br>
+            <a href="${resetUrl}" style="color: #2563eb; word-break: break-all;">${resetUrl}</a>
+          </p>
+          
+          <div class="warning-box">
+            <p style="margin: 0; font-size: 14px;">
+              ⚠️ This password reset link will expire in 1 hour for security reasons.
+            </p>
+          </div>
+          
+          <p><strong>Didn't request a password reset?</strong></p>
+          <p>If you didn't request this, you can safely ignore this email. Your password will remain unchanged.</p>
+          
+          <p>For security, never share this link with anyone.</p>
+          
+          <p><strong>The EduNurse Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>EduNurse - AI-Powered Nursing Education</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: "🔐 Reset Your Password - EduNurse",
+    html,
+    text: `Reset Your Password\n\nHi ${userName},\n\nWe received a request to reset your password.\n\nReset your password by clicking this link:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you didn't request this, ignore this email.\n\nThe EduNurse Team`,
   });
 }

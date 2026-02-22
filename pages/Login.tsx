@@ -1,16 +1,27 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { EyeOff, Lock, Mail } from "lucide-react";
 import { useAuth } from "../src/context/AuthContext";
 import { loginSuperadmin } from "../src/services/backendApi";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { refreshUser } = useAuth();
   const [email, setEmail] = React.useState("superadmin@edunurse.local");
   const [password, setPassword] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+
+  // Show session expiration message if redirected from ops
+  React.useEffect(() => {
+    const state = location.state as { message?: string } | null;
+    if (state?.message) {
+      setErrorMessage(state.message);
+      // Clear the state to prevent showing the message again on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -105,7 +116,11 @@ const Login: React.FC = () => {
 
             <form onSubmit={handleLogin} className="space-y-6">
               {errorMessage && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className={`rounded-lg border px-3 py-2 text-sm ${
+                  errorMessage.includes("Session expired") 
+                    ? "border-amber-200 bg-amber-50 text-amber-700" 
+                    : "border-red-200 bg-red-50 text-red-700"
+                }`}>
                   {errorMessage}
                 </div>
               )}

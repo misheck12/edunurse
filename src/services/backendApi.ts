@@ -2130,3 +2130,40 @@ export function updateAdminTransaction(
     body: JSON.stringify(input),
   });
 }
+
+// System Settings
+export interface SystemSettingCategory {
+  key: string;
+  value: string;
+  description: string;
+  isSecret: boolean;
+}
+
+export interface SystemSettingsResponse {
+  categories: Record<string, SystemSettingCategory[]>;
+  definitions: Array<{
+    key: string;
+    category: string;
+    description: string;
+    defaultValue: string;
+    isSecret: boolean;
+  }>;
+}
+
+export function getAdminSettings() {
+  return request<SystemSettingsResponse>("/admin/settings");
+}
+
+export function updateAdminSettings(settings: Record<string, string>) {
+  return request<{ message: string }>("/admin/settings", {
+    method: "PUT",
+    body: JSON.stringify({ settings }),
+  });
+}
+
+export function resetUserPassword(userId: string, newPassword: string) {
+  return request<{ message: string }>("/admin/users/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ userId, newPassword }),
+  });
+}

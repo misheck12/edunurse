@@ -16,6 +16,7 @@ import subscriptionRoutes from "./subscriptions.js";
 import adminAnalyticsRoutes from "./admin-analytics.js";
 import transactionRoutes from "./transactions.js";
 import profileRoutes from "./profile.js";
+import adminSettingsRoutes from "./admin-settings.js";
 
 export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoutes);
@@ -29,6 +30,7 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(adminOpsRoutes, { prefix: "/admin/ops" });
   await app.register(adminManagementRoutes, { prefix: "/admin" }); // includes /admin/transactions
   await app.register(adminAnalyticsRoutes, { prefix: "/admin/analytics" });
+  await app.register(adminSettingsRoutes, { prefix: "/admin" });
   await app.register(userRoutes, { prefix: "/users" });
   await app.register(templateRoutes, { prefix: "/templates" });
   await app.register(documentRoutes, { prefix: "/documents" });
