@@ -877,94 +877,11 @@ export async function downloadExportFile(
 
   const downloadUrl = `${API_BASE_URL}/exports/${resolvedExportJobId}/download`;
   const authHeaders = buildAuthHeaders("default");
-  
-  // Check if we're on mobile/PWA
-  const isMobile = typeof navigator !== "undefined" && 
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isPWA = typeof window !== "undefined" && 
-    (window.matchMedia('(display-mode: standalone)').matches || 
-    (window.navigator as any).standalone === true);
 
-  // For mobile/PWA, use direct download for better performance
-  if (isMobile || isPWA) {
-    // Create a temporary link and trigger download
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = `edunurse-export-${resolvedExportJobId}.${format}`;
-    
-    // Add auth header via fetch and create blob URL
-    try {
-      const response = await fetch(downloadUrl, {
-        method: "GET",
-        headers: authHeaders,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Download failed with status ${response.status}`);
-      }
-
-      // Get content length for progress
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-      
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
-
-      // Read stream with progress
-      const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let receivedLength = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-        
-        chunks.push(value);
-        receivedLength += value.length;
-        
-        // Report progress
-        if (onProgress && total > 0) {
-          onProgress(Math.round((receivedLength / total) * 100));
-        }
-      }
-
-      // Combine chunks into single array
-      const chunksAll = new Uint8Array(receivedLength);
-      let position = 0;
-      for (const chunk of chunks) {
-        chunksAll.set(chunk, position);
-        position += chunk.length;
-      }
-
-      // Create blob and download
-      const blob = new Blob([chunksAll], {
-        type: format === "pdf" 
-          ? "application/pdf" 
-          : format === "docx"
-          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          : "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-      });
-      
-      const objectUrl = window.URL.createObjectURL(blob);
-      link.href = objectUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(objectUrl);
-      
-      if (onProgress) {
-        onProgress(100);
-      }
-    } catch (error) {
-      console.error('Mobile download error:', error);
-      throw error;
-    }
-    return;
+  if (onProgress) {
+    onProgress(10);
   }
 
-  // Desktop: Use standard blob download
   const response = await fetch(downloadUrl, {
     method: "GET",
     headers: authHeaders,
@@ -981,15 +898,34 @@ export async function downloadExportFile(
     throw new Error(message);
   }
 
+  if (onProgress) {
+    onProgress(50);
+  }
+
   const blob = await response.blob();
+  
+  if (onProgress) {
+    onProgress(80);
+  }
+
   const objectUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
   link.download = `edunurse-export-${resolvedExportJobId}.${format}`;
+  
+  // For mobile, add target blank to help with download
+  if (/Android|webOS|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    link.target = '_blank';
+  }
+  
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(objectUrl);
+  
+  // Delay cleanup for mobile
+  setTimeout(() => {
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
+  }, 100);
   
   if (onProgress) {
     onProgress(100);
@@ -2261,5 +2197,12 @@ export function resetUserPassword(userId: string, newPassword: string) {
   return request<{ message: string }>("/admin/users/reset-password", {
     method: "POST",
     body: JSON.stringify({ userId, newPassword }),
+  });
+}
+
+export function testEmailConfiguration(toEmail: string) {
+  return request<{ message: string }>("/admin/test-email", {
+    method: "POST",
+    body: JSON.stringify({ toEmail }),
   });
 }

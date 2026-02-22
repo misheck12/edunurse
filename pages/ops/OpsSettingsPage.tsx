@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import {
   getAdminSettings,
   updateAdminSettings,
+  testEmailConfiguration,
   SystemSettingsResponse,
 } from "../../src/services/backendApi";
-import { Settings, Mail, Globe, Save, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Settings, Mail, Globe, Save, RefreshCw, AlertCircle, CheckCircle2, Send } from "lucide-react";
 
 const OpsSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettingsResponse | null>(null);
@@ -14,6 +15,10 @@ const OpsSettingsPage: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
+
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [showTestEmailModal, setShowTestEmailModal] = useState(false);
 
   const loadSettings = async () => {
     setLoading(true);
@@ -55,6 +60,27 @@ const OpsSettingsPage: React.FC = () => {
       setError(saveError instanceof Error ? saveError.message : "Failed to save settings.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddress.trim()) {
+      setError("Please enter an email address");
+      return;
+    }
+
+    setSendingTestEmail(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const response = await testEmailConfiguration(testEmailAddress);
+      setNotice(response.message);
+      setShowTestEmailModal(false);
+      setTestEmailAddress("");
+    } catch (testError) {
+      setError(testError instanceof Error ? testError.message : "Failed to send test email.");
+    } finally {
+      setSendingTestEmail(false);
     }
   };
 
@@ -185,6 +211,22 @@ const OpsSettingsPage: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                  
+                  {/* Test Email Button for Email Category */}
+                  {category === "email" && (
+                    <div className="mt-6 pt-6 border-t border-slate-200">
+                      <button
+                        onClick={() => setShowTestEmailModal(true)}
+                        className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 shadow-sm transition-all hover:bg-blue-100"
+                      >
+                        <Send size={16} />
+                        Send Test Email
+                      </button>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Send a test email to verify your SMTP configuration is working correctly
+                      </p>
+                    </div>
+                  )}
                 </div>
               </section>
             ))}
@@ -236,6 +278,51 @@ const OpsSettingsPage: React.FC = () => {
             </div>
           </div>
         </>
+      )}
+
+      {/* Test Email Modal */}
+      {showTestEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Send Test Email</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Enter an email address to receive a test welcome email. This will verify your SMTP configuration is working correctly.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  placeholder="test@example.com"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowTestEmailModal(false);
+                    setTestEmailAddress("");
+                  }}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleSendTestEmail()}
+                  disabled={sendingTestEmail || !testEmailAddress.trim()}
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  <Send size={16} />
+                  {sendingTestEmail ? "Sending..." : "Send Test Email"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

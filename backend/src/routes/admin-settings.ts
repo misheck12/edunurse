@@ -17,6 +17,10 @@ const resetUserPasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
+const testEmailSchema = z.object({
+  toEmail: z.string().email(),
+});
+
 const adminSettingsRoutes: FastifyPluginAsync = async (app) => {
   // Get all system settings
   app.get("/settings", async (request) => {
@@ -102,6 +106,32 @@ const adminSettingsRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(200).send({ 
       message: `Password reset successfully for ${user.email}` 
     });
+  });
+
+  // Test email configuration (admin only)
+  app.post("/test-email", async (request, reply) => {
+    await requireAdminUser(app, request);
+    
+    const body = testEmailSchema.parse(request.body);
+    const { sendWelcomeEmail } = await import("../services/email.js");
+
+    try {
+      await sendWelcomeEmail(body.toEmail, {
+        userName: "Test User",
+        freeGenerations: 2,
+      });
+
+      app.log.info({ toEmail: body.toEmail, adminId: request.user?.sub }, "Test email sent");
+
+      return reply.code(200).send({ 
+        message: `Test email sent successfully to ${body.toEmail}` 
+      });
+    } catch (error) {
+      app.log.error({ error, toEmail: body.toEmail }, "Failed to send test email");
+      throw app.httpErrors.internalServerError(
+        `Failed to send test email: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   });
 };
 
