@@ -67,6 +67,9 @@ export interface RetrievalChunkForPrompt {
   page: number | null;
   heading: string | null;
   text: string;
+  unit?: string;
+  topic?: string;
+  subtopic?: string;
 }
 
 export interface GenerateDocumentInput {
@@ -2402,17 +2405,26 @@ function buildPrompt(input: GenerateDocumentInput) {
       ? input.plannerGuidance.outcomes.map((item) => `- ${item}`).join("\n")
       : "n/a";
 
+  // Lesson Plans benefit from more text per chunk since content needs to fill
+  // 9+ distinct sections (intro, objectives, presentation table, etc.).
+  const chunkTextLimit = isLessonPlanDocumentType(input.documentType) ? 2200 : 1600;
   const chunkBlock = input.retrievalChunks
     .map((chunk, index) => {
-      return [
+      const lines = [
         `[[chunk_${index + 1}]]`,
         `chunk_id: ${chunk.chunkId}`,
         `source_id: ${chunk.sourceId}`,
         `source_name: ${chunk.sourceName}`,
         `page: ${chunk.page ?? "n/a"}`,
         `heading: ${chunk.heading ?? "n/a"}`,
-        `text: ${chunk.text.slice(0, 1600)}`,
-      ].join("\n");
+      ];
+      // Include curriculum metadata if available so the LLM understands which
+      // unit/topic/subtopic each chunk covers.
+      if (chunk.unit) lines.push(`unit: ${chunk.unit}`);
+      if (chunk.topic) lines.push(`topic: ${chunk.topic}`);
+      if (chunk.subtopic) lines.push(`subtopic: ${chunk.subtopic}`);
+      lines.push(`text: ${chunk.text.slice(0, chunkTextLimit)}`);
+      return lines.join("\n");
     })
     .join("\n\n");
 

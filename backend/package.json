@@ -21,6 +21,7 @@
   "dependencies": {
     "@fastify/cors": "^11.0.1",
     "@fastify/helmet": "^13.0.2",
+    "@fastify/rate-limit": "^10.3.0",
     "@fastify/sensible": "^6.0.3",
     "@napi-rs/canvas": "^0.1.92",
     "@prisma/client": "6.4.1",

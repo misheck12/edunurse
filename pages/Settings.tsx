@@ -8,6 +8,7 @@ import {
 import { useAuth } from "../src/context/AuthContext";
 import { BillingSection } from "../src/components/BillingSection";
 import { PaymentModal } from "../src/components/PaymentModal";
+import SEO from "../src/components/SEO";
 
 type ProgrammeOption = "Nursing" | "Midwifery";
 
@@ -172,6 +173,7 @@ const Settings: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+      <SEO title="Settings" description="Manage your EduNurse Pro account settings and preferences." noIndex />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
         <p className="mt-2 text-sm text-slate-500">

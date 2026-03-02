@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Lock, Mail } from "lucide-react";
 import { useAuth } from "../src/context/AuthContext";
 import { signinClient } from "../src/services/backendApi";
+import SEO from "../src/components/SEO";
 
 const ClientSignIn: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +39,11 @@ const ClientSignIn: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-10">
+      <SEO
+        title="Sign In"
+        description="Sign in to EduNurse Pro. Access AI-powered lesson plan generation for nursing and midwifery educators."
+        canonicalPath="/signin"
+      />
       <div className="mx-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold text-slate-900">Client Sign In</h1>
         <p className="mt-1 text-sm text-slate-500">

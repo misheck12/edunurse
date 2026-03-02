@@ -5,6 +5,7 @@ import { BookOpen, Activity, ClipboardList, Thermometer, Calendar, CheckCircle2,
 import { useDocument } from '../src/context/DocumentContext';
 import { UpgradeBanner } from '../src/components/UpgradeBanner';
 import { PaymentModal } from '../src/components/PaymentModal';
+import SEO from '../src/components/SEO';
 import {
   getCurriculumPlannerOptions,
   getCurriculumPlannerSuggestions,
@@ -515,6 +516,12 @@ const CreateWizard: React.FC = () => {
 
   return (
     <div className="flex w-full flex-col items-center px-3 py-6 sm:px-6 sm:py-8">
+      <SEO
+        title="Create New Document"
+        description="Create AI-powered lesson plans, OSCE stations, clinical teaching plans, and assessments aligned to the nursing and midwifery curriculum."
+        canonicalPath="/create"
+        keywords="create lesson plan, OSCE generator, nursing assessment, clinical teaching plan"
+      />
       <div className="w-full max-w-4xl">
         <UpgradeBanner
           onUpgradeClick={() => setShowPaymentModal(true)}

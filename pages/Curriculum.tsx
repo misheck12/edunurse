@@ -22,6 +22,7 @@ import {
   getCurriculumTreeNode,
   queryCurriculum,
 } from "../src/services/backendApi";
+import SEO from "../src/components/SEO";
 
 type SelectedTreeNode = {
   sourceId: string;
@@ -375,6 +376,12 @@ const Curriculum: React.FC = () => {
 
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col overflow-hidden">
+      <SEO
+        title="Curriculum Intelligence"
+        description="Explore the indexed nursing and midwifery curriculum. Browse topics, subtopics, and run AI-powered Q&A with curriculum citations."
+        canonicalPath="/curriculum"
+        keywords="nursing curriculum explorer, midwifery syllabus, curriculum intelligence, Zambia nursing"
+      />
       <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4">
           <div>

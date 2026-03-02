@@ -35,8 +35,8 @@ const EnvSchema = z.object({
   AZURE_DALLE_MODEL: z.string().default("dall-e-3"),
   AZURE_DALLE_STYLE: z.enum(["vivid", "natural"]).default("vivid"),
   AZURE_DALLE_QUALITY: z.enum(["standard", "hd"]).default("standard"),
-  INGESTION_CHUNK_SIZE: z.coerce.number().int().positive().default(1200),
-  INGESTION_CHUNK_OVERLAP: z.coerce.number().int().nonnegative().default(180),
+  INGESTION_CHUNK_SIZE: z.coerce.number().int().positive().default(1800),
+  INGESTION_CHUNK_OVERLAP: z.coerce.number().int().nonnegative().default(300),
   CONNECTOR_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
   OCR_FALLBACK_ENABLED: z
     .string()
@@ -49,6 +49,7 @@ const EnvSchema = z.object({
   OCR_PDF_RENDER_SCALE: z.coerce.number().positive().default(1.75),
   GENERATION_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
   RETRIEVAL_TOP_K: z.coerce.number().int().positive().default(5),
+  RETRIEVAL_LESSON_PLAN_TOP_K: z.coerce.number().int().positive().default(20),
   RETRIEVAL_CANDIDATE_K: z.coerce.number().int().positive().default(180),
   RETRIEVAL_MIN_COVERAGE: z.coerce.number().int().positive().default(3),
   RETRIEVAL_VECTOR_WEIGHT: z.coerce.number().positive().default(40),

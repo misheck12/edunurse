@@ -70,9 +70,6 @@ export async function initiateMobileMoneyPayment(
     metadata: input.metadata,
   };
 
-  // Log the payload for debugging
-  console.log("Lenco API Request:", JSON.stringify(payload, null, 2));
-
   const response = await fetch(`${LENCO_API_BASE}/collections/mobile-money`, {
     method: "POST",
     headers: {

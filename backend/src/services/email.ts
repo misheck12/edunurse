@@ -10,6 +10,7 @@ import { PrismaClient } from "@prisma/client";
 import { getSetting } from "./system-settings.js";
 
 let transporter: Transporter | null = null;
+let cachedConfigHash: string | null = null;
 let prismaClient: PrismaClient | null = null;
 
 /**
@@ -68,10 +69,24 @@ async function getTransporter(): Promise<Transporter | null> {
   const config = await getEmailConfig();
 
   if (!config.enabled) {
+    transporter = null;
+    cachedConfigHash = null;
     return null;
   }
 
-  // Reset transporter if configuration might have changed
+  // Only rebuild the transporter when SMTP configuration actually changes
+  const newConfigHash = JSON.stringify({
+    host: config.smtpHost,
+    port: config.smtpPort,
+    user: config.smtpUser,
+    secure: config.smtpSecure,
+  });
+
+  if (transporter && newConfigHash === cachedConfigHash) {
+    return transporter;
+  }
+
+  cachedConfigHash = newConfigHash;
   transporter = null;
 
   // Microsoft 365 / Outlook SMTP configuration
@@ -89,8 +104,6 @@ async function getTransporter(): Promise<Transporter | null> {
         rejectUnauthorized: false, // For self-signed certificates
       },
     });
-
-    console.log(`[Email] Initialized SMTP transporter: ${config.smtpHost}:${config.smtpPort}`);
   }
 
   return transporter;

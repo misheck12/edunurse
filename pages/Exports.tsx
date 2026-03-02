@@ -13,6 +13,7 @@ import {
   ExportJobListItem,
   listExportJobs,
 } from "../src/services/backendApi";
+import SEO from "../src/components/SEO";
 
 const PAGE_SIZE = 20;
 
@@ -101,6 +102,12 @@ const Exports: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 md:p-10">
+      <SEO
+        title="Exported Files"
+        description="Download your exported lesson plans and documents in DOCX, PDF, and PPTX formats."
+        canonicalPath="/exports"
+        noIndex
+      />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Exported Files</h1>

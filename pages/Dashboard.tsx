@@ -6,13 +6,14 @@ import { UpgradeBanner } from '../src/components/UpgradeBanner';
 import { PaymentModal } from '../src/components/PaymentModal';
 import { GenerationReconnectModal } from '../components/GenerationReconnectModal';
 import { useGenerationReconnect } from '../src/hooks/useGenerationReconnect';
+import SEO from '../src/components/SEO';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { inProgressGeneration, dismissInProgressGeneration } = useGenerationReconnect();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const ActionCard = ({ icon: Icon, title, desc, color }: { icon: any, title: string, desc: string, color: string }) => (
+  const ActionCard = ({ icon: Icon, title, desc, color }: { icon: React.ComponentType<{ size?: number }>, title: string, desc: string, color: string }) => (
     <div 
         onClick={() => navigate('/create')}
         className="group bg-white p-6 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/5 transition-all cursor-pointer relative overflow-hidden"
@@ -27,6 +28,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <>
+      <SEO
+        title="Dashboard"
+        description="Your educator workspace. Generate structured, curriculum-grounded lesson plans, OSCE stations, and assessments for nursing and midwifery programmes."
+        canonicalPath="/"
+        keywords="nursing lesson plans, educator dashboard, AI teaching tools"
+      />
       {inProgressGeneration && (
         <GenerationReconnectModal
           documentId={inProgressGeneration.documentId}

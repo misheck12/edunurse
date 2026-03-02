@@ -1,5 +1,6 @@
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
+import SEO from '../src/components/SEO';
 
 const Help: React.FC = () => {
   // Replace with your actual WhatsApp group link
@@ -7,6 +8,12 @@ const Help: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 flex items-center justify-center p-4">
+      <SEO
+        title="Help & Support"
+        description="Get help and support for EduNurse Pro. Join our WhatsApp community of nursing and midwifery educators."
+        canonicalPath="/help"
+        keywords="EduNurse support, nursing educator help, WhatsApp community"
+      />
       <div className="max-w-2xl w-full">
         {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 md:p-12 text-center">

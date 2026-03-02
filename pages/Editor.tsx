@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useDocument } from '../src/context/DocumentContext';
 import { RichTextBlock, ListBlock, ScriptBlock, RubricBlock, TableBlock } from '../src/components/editor/blocks';
 import ExportModal from '../src/components/editor/ExportModal';
+import SEO from '../src/components/SEO';
 
 const Editor: React.FC = () => {
     const navigate = useNavigate();
@@ -27,6 +28,8 @@ const Editor: React.FC = () => {
 
     const [routeLoadError, setRouteLoadError] = useState<string | null>(null);
     const [saveStatusMessage, setSaveStatusMessage] = useState<string | null>(null);
+    const [regenerateModal, setRegenerateModal] = useState<{ sectionId: string; sectionTitle: string } | null>(null);
+    const [regenerateInstructions, setRegenerateInstructions] = useState('');
 
     useEffect(() => {
         if (!routeDocumentId) return;
@@ -62,21 +65,26 @@ const Editor: React.FC = () => {
 
 
 
-    const handleRegenerateSection = async (sectionId: string, sectionTitle: string) => {
-        const instructions = window.prompt(
-            `Optional guidance for "${sectionTitle}" (leave blank to use default regeneration).`,
-        );
+    const handleRegenerateSection = (sectionId: string, sectionTitle: string) => {
+        setRegenerateInstructions('');
+        setRegenerateModal({ sectionId, sectionTitle });
+    };
 
+    const handleConfirmRegenerate = async () => {
+        if (!regenerateModal) return;
+        const { sectionId } = regenerateModal;
         setRegeneratingSectionId(sectionId);
+        setRegenerateModal(null);
         clearError();
 
         try {
-            await regenerateSection(sectionId, instructions ?? undefined);
+            await regenerateSection(sectionId, regenerateInstructions.trim() || undefined);
             setActiveSectionId(sectionId);
         } catch {
             // Error surfaced by context.
         } finally {
             setRegeneratingSectionId(null);
+            setRegenerateInstructions('');
         }
     };
 
@@ -391,6 +399,11 @@ const Editor: React.FC = () => {
 
     return (
         <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#f6f7f8]">
+            <SEO
+              title={currentDocument.metadata.title || "Document Editor"}
+              description="Edit and refine your AI-generated nursing education document."
+              noIndex
+            />
             {/* Top Bar */}
             <header className="z-20 shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-6 sm:py-0">
                 <div className="flex min-h-16 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -728,6 +741,45 @@ const Editor: React.FC = () => {
                 documentId={currentDocument.metadata.id}
                 documentTitle={currentDocument.metadata.title}
             />
+
+            {/* Regenerate Section Modal */}
+            {regenerateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                        <h3 className="text-base font-bold text-slate-900 mb-1">Regenerate Section</h3>
+                        <p className="text-sm text-slate-500 mb-4">
+                            Optional guidance for{' '}
+                            <span className="font-medium text-slate-700">"{regenerateModal.sectionTitle}"</span>.
+                            Leave blank to use default regeneration.
+                        </p>
+                        <textarea
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            rows={3}
+                            placeholder="e.g. Focus more on clinical assessment steps..."
+                            value={regenerateInstructions}
+                            onChange={(e) => setRegenerateInstructions(e.target.value)}
+                            // eslint-disable-next-line jsx-a11y/no-autofocus
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button
+                                onClick={() => { setRegenerateModal(null); setRegenerateInstructions(''); }}
+                                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => void handleConfirmRegenerate()}
+                                disabled={Boolean(regeneratingSectionId)}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
+                            >
+                                <Sparkles size={14} />
+                                {regeneratingSectionId ? 'Regenerating...' : 'Regenerate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

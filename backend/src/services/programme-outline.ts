@@ -144,30 +144,84 @@ function normalize(value: string | undefined | null) {
 function normalizeForMatch(value: string | undefined | null) {
   return normalize(value)
     .replace(/\b(module|course|unit|topic|subtopic|minor)\b/g, " ")
+    // Expand common nursing abbreviations to improve matching
+    .replace(/\bhrm\b/g, "human resource management")
+    .replace(/\bgbv\b/g, "gender based violence")
+    .replace(/\bhiv\b/g, "human immunodeficiency virus")
+    .replace(/\baids\b/g, "acquired immunodeficiency syndrome")
+    .replace(/\bphc\b/g, "primary health care")
+    .replace(/\birh\b/g, "integrated reproductive health")
+    .replace(/\blmg\b/g, "leadership management governance")
+    .replace(/\bdsd\b/g, "differentiated service delivery")
+    .replace(/\bsdgs?\b/g, "sustainable development goals")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+/** Set of boilerplate heading labels that are not real curriculum content */
+const NOISE_EXACT = new Set([
+  "unit introduction",
+  "introduction",
+  "unit learning outcome",
+  "unit learning outcomes",
+  "learning outcomes",
+  "learning outcome",
+  "unit summary",
+  "summary",
+  "references",
+  "reference",
+  "references and further reading",
+  "references and further readings",
+  "reference and further reading",
+  "self assessment test",
+  "self assessment tests",
+  "self assessment question",
+  "self assessment questions",
+  "further reading",
+  "further readings",
+  "definition of terms",
+  "definition of key terms",
+  "definitions",
+  "definition of concepts",
+  "definitions of key terms",
+  "definitions of terms",
+  "unit objectives",
+  "objectives",
+  "conclusion",
+  "revision questions",
+  "review questions",
+  "assignment",
+  "assignments",
+  "practical exercises",
+  "practical exercise",
+  "tutorial",
+  "tutorials",
+  "suggested reading",
+  "suggested readings",
+  "recommended reading",
+  "recommended readings",
+  "bibliography",
+]);
+
 function isNoisePlannerLabel(value: string | undefined | null) {
   const normalized = normalize(value).replace(/^(?:\d+\s*)+/, "").trim();
   if (!normalized) return true;
-  return (
-    normalized.includes("unspecified") ||
-    normalized === "unit introduction" ||
-    normalized === "introduction" ||
-    normalized === "unit learning outcome" ||
-    normalized === "unit learning outcomes" ||
-    normalized === "unit summary" ||
-    normalized === "summary" ||
-    normalized === "references" ||
-    normalized === "reference" ||
-    normalized === "references and further reading" ||
-    normalized === "references and further readings" ||
-    normalized === "self assessment test" ||
-    normalized === "self assessment tests" ||
-    normalized === "self assessment question" ||
-    normalized === "self assessment questions"
-  );
+  if (normalized.length < 4) return true;
+  // Exact boilerplate matches
+  if (NOISE_EXACT.has(normalized)) return true;
+  if (normalized === "unit" || normalized === "topic") return true;
+  if (normalized.includes("unspecified")) return true;
+  // Generic "UNIT X" with no real title
+  if (/^unit\s+\d+$/i.test(normalized)) return true;
+  // Titles starting with "–" or "\"" are quoted list items parsed as subtopics (e.g. SDG goals)
+  if (/^[–—"\-]\s*"/.test((value ?? "").trim())) return true;
+  // Garbage: sentence fragments (>15 words for a title is suspicious)
+  if (normalized.split(" ").length > 15) return true;
+  // Garbage: equation fragments or stray punctuation
+  if (/^[-=+*()\d\s.kpa]+$/.test(normalized)) return true;
+  // Partial sentence fragments: starts with a non-title word and is long enough to be a sentence
+  if (/^(million|and|or|but|also|however|therefore|furthermore|moreover|thus|hence)\s/.test(normalized) && normalized.split(" ").length > 3) return true;
+  return false;
 }
 
 function titleCase(value: string) {
@@ -210,6 +264,246 @@ function isGenericCourseLabel(label: string | undefined) {
   );
 }
 
+/**
+ * Deduplicate topics that share the same topic_number within one document.
+ * The pattern is: a short "stub" topic (empty or few subtopics, different casing)
+ * duplicating a full-content topic.  We keep the one with more subtopics, and
+ * merge any unique subtopics from the stub into the winner.
+ * When a loser has a meaningful title distinct from the winner, it is promoted
+ * as a subtopic so no content is silently dropped.
+ */
+function deduplicateTopics(topics: StructuredTopic[]): StructuredTopic[] {
+  const byNumber = new Map<string, StructuredTopic[]>();
+  const unnumbered: StructuredTopic[] = [];
+
+  for (const topic of topics) {
+    const num = (topic.number ?? "").trim();
+    if (!num) {
+      // Skip truly empty / garbage entries
+      if (!isNoisePlannerLabel(topic.title)) {
+        unnumbered.push(topic);
+      }
+      continue;
+    }
+    const group = byNumber.get(num) ?? [];
+    group.push(topic);
+    byNumber.set(num, group);
+  }
+
+  const result: StructuredTopic[] = [];
+  for (const [, group] of byNumber) {
+    if (group.length === 1) {
+      result.push(group[0]);
+      continue;
+    }
+    // Pick the entry with the most subtopics (i.e. the full-content version)
+    group.sort((a, b) => b.subtopics.length - a.subtopics.length);
+    const winner = {
+      ...group[0],
+      subtopics: [...group[0].subtopics],
+    };
+
+    // If the winner has a generic title ("Unit X"), steal the title from the next best
+    if (isNoisePlannerLabel(winner.title)) {
+      for (const candidate of group.slice(1)) {
+        if (!isNoisePlannerLabel(candidate.title)) {
+          winner.title = candidate.title;
+          break;
+        }
+      }
+    }
+
+    // Merge unique subtopics from losers.
+    // If a loser has a meaningful title different from the winner, promote it as a subtopic.
+    const existingSubKeys = new Set(
+      winner.subtopics.map((s) => `${s.number ?? ""}|${normalize(s.title)}`),
+    );
+    for (const loser of group.slice(1)) {
+      if (
+        !isNoisePlannerLabel(loser.title) &&
+        normalize(loser.title) !== normalize(winner.title)
+      ) {
+        const promoKey = `|${normalize(loser.title)}`;
+        if (!existingSubKeys.has(promoKey)) {
+          winner.subtopics.push({
+            title: loser.title,
+            minorTopics: loser.subtopics.length > 0
+              ? loser.subtopics.map((s) => ({ number: s.number, title: s.title }))
+              : [],
+          });
+          existingSubKeys.add(promoKey);
+        }
+      }
+      for (const sub of loser.subtopics) {
+        const key = `${sub.number ?? ""}|${normalize(sub.title)}`;
+        if (!existingSubKeys.has(key)) {
+          winner.subtopics.push(sub);
+          existingSubKeys.add(key);
+        }
+      }
+    }
+
+    result.push(winner);
+  }
+
+  // Add unnumbered topics (rare, usually noise — already filtered above)
+  result.push(...unnumbered);
+
+  // Sort by topic number
+  result.sort((a, b) => {
+    const na = parseFloat(a.number ?? "9999");
+    const nb = parseFloat(b.number ?? "9999");
+    return na - nb;
+  });
+
+  return result;
+}
+
+/**
+ * Deduplicate subtopics that share the same subtopic_number within one topic.
+ * Keeps the entry with more minor_topics and merges unique minor topics from others.
+ * When both entries have meaningful (non-noise) titles, the loser's title is
+ * preserved as an additional minor topic so no content is lost.
+ */
+function deduplicateSubtopics(subtopics: StructuredSubtopic[]): StructuredSubtopic[] {
+  const byNumber = new Map<string, StructuredSubtopic[]>();
+  const unnumbered: StructuredSubtopic[] = [];
+
+  for (const sub of subtopics) {
+    const num = (sub.number ?? "").trim();
+    if (!num) {
+      unnumbered.push(sub);
+      continue;
+    }
+    const group = byNumber.get(num) ?? [];
+    group.push(sub);
+    byNumber.set(num, group);
+  }
+
+  const result: StructuredSubtopic[] = [];
+  for (const [, group] of byNumber) {
+    if (group.length === 1) {
+      result.push(group[0]);
+      continue;
+    }
+    // Pick the entry with the most minor topics
+    group.sort((a, b) => b.minorTopics.length - a.minorTopics.length);
+    const winner = {
+      ...group[0],
+      minorTopics: [...group[0].minorTopics],
+    };
+
+    // If the winner has a noise title, try to steal a better one
+    if (isNoisePlannerLabel(winner.title)) {
+      for (const candidate of group.slice(1)) {
+        if (!isNoisePlannerLabel(candidate.title)) {
+          winner.title = candidate.title;
+          break;
+        }
+      }
+    }
+
+    // Merge unique minor topics from losers.
+    // When a loser has a meaningful title different from the winner,
+    // promote it into a minor topic so no content is lost.
+    const existingMinorKeys = new Set(
+      winner.minorTopics.map((m) => `${m.number ?? ""}|${normalize(m.title)}`),
+    );
+    for (const loser of group.slice(1)) {
+      // Promote loser title as minor topic if it's meaningful and different
+      if (
+        !isNoisePlannerLabel(loser.title) &&
+        normalize(loser.title) !== normalize(winner.title)
+      ) {
+        const promoKey = `|${normalize(loser.title)}`;
+        if (!existingMinorKeys.has(promoKey)) {
+          winner.minorTopics.push({ title: loser.title });
+          existingMinorKeys.add(promoKey);
+        }
+      }
+      for (const minor of loser.minorTopics) {
+        const key = `${minor.number ?? ""}|${normalize(minor.title)}`;
+        if (!existingMinorKeys.has(key)) {
+          winner.minorTopics.push(minor);
+          existingMinorKeys.add(key);
+        }
+      }
+    }
+
+    result.push(winner);
+  }
+
+  result.push(...unnumbered);
+  result.sort((a, b) => {
+    const na = parseFloat(a.number ?? "9999");
+    const nb = parseFloat(b.number ?? "9999");
+    return na - nb;
+  });
+
+  return result;
+}
+
+/**
+ * Filter out noise/boilerplate subtopics and minor topics that aren't
+ * meaningful curriculum content (introductions, summaries, references, etc.).
+ */
+function filterNoiseFromTopic(topic: StructuredTopic): StructuredTopic {
+  return {
+    ...topic,
+    subtopics: topic.subtopics
+      .filter((sub) => !isNoisePlannerLabel(sub.title))
+      .map((sub) => ({
+        ...sub,
+        minorTopics: sub.minorTopics.filter(
+          (minor) => !isNoisePlannerLabel(minor.title),
+        ),
+      })),
+  };
+}
+
+/**
+ * Fix minor topic numbers whose prefix doesn't match their parent subtopic.
+ * E.g. a minor topic under subtopic 4.4 with number "2.5.1" is clearly a parsing
+ * error and should be renumbered to 4.4.N.
+ * Also assigns sequential numbers to minor topics that lack numbers.
+ */
+function fixMinorTopicNumbers(topic: StructuredTopic): StructuredTopic {
+  return {
+    ...topic,
+    subtopics: topic.subtopics.map((sub) => {
+      const subNum = (sub.number ?? "").trim();
+      if (!subNum || sub.minorTopics.length === 0) return sub;
+
+      // Find the maximum existing sequential index under this subtopic
+      let maxSeq = 0;
+      for (const m of sub.minorTopics) {
+        const mn = (m.number ?? "").trim();
+        if (mn.startsWith(subNum + ".")) {
+          const seq = parseInt(mn.slice(subNum.length + 1), 10);
+          if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+        }
+      }
+
+      const fixedMinors = sub.minorTopics.map((minor) => {
+        const mn = (minor.number ?? "").trim();
+        if (!mn) {
+          // Assign a sequential number
+          maxSeq += 1;
+          return { ...minor, number: `${subNum}.${maxSeq}` };
+        }
+        if (!mn.startsWith(subNum + ".") && mn.includes(".")) {
+          // Mismatched prefix — renumber
+          maxSeq += 1;
+          return { ...minor, number: `${subNum}.${maxSeq}` };
+        }
+        return minor;
+      });
+
+      return { ...sub, minorTopics: fixedMinors };
+    }),
+  };
+}
+
 function resolveOutlinePath() {
   const envPath = process.env.PROGRAMME_OUTLINE_JSON_PATH?.trim();
   const defaultCandidates = DEFAULT_OUTLINE_PATHS.flatMap((relativePath) => [
@@ -227,21 +521,42 @@ function resolveOutlinePath() {
 function bestMatch<T>(items: T[], input: string, labelOf: (item: T) => string) {
   const needle = normalizeForMatch(input);
   if (!needle) return null;
+  // Also try stripping a leading number prefix from the input (e.g. "3 Social Units" → "social units")
+  const needleNoNum = needle.replace(/^\d+(?:\.\d+)*\s*/, "").trim();
 
   let best: { item: T; score: number } | null = null;
   for (const item of items) {
     const label = normalizeForMatch(labelOf(item));
     if (!label) continue;
+    const labelNoNum = label.replace(/^\d+(?:\.\d+)*\s*/, "").trim();
+
     let score = 0;
-    if (label === needle) score = 300;
-    else if (label.includes(needle)) score = 220;
-    else if (needle.includes(label)) score = 180;
+    // Exact match (with or without numbers)
+    if (label === needle || labelNoNum === needleNoNum) score = 300;
+    else if (labelNoNum && needleNoNum && labelNoNum === needleNoNum) score = 300;
+    // One contains the other
+    else if (label.includes(needle) || label.includes(needleNoNum)) score = 220;
+    else if (needle.includes(label) || needleNoNum.includes(labelNoNum)) score = 180;
     else {
-      const tokens = needle.split(" ").filter((token) => token.length >= 3);
-      const hits = tokens.filter((token) => label.includes(token)).length;
-      if (hits > 0) {
-        const overlapRatio = hits / Math.max(1, tokens.length);
-        score = Math.round(hits * 25 + overlapRatio * 40);
+      // Token overlap scoring
+      const needleTokens = needleNoNum.split(" ").filter((token) => token.length >= 3);
+      const labelTokens = labelNoNum.split(" ").filter((token) => token.length >= 3);
+      const hits = needleTokens.filter(
+        (token) => label.includes(token) || labelNoNum.includes(token),
+      ).length;
+      // Also check reverse: how many label tokens appear in needle
+      const reverseHits = labelTokens.filter(
+        (token) => needle.includes(token) || needleNoNum.includes(token),
+      ).length;
+      const bestHits = Math.max(hits, reverseHits);
+      const bestBase = Math.max(needleTokens.length, labelTokens.length);
+      if (bestHits > 0) {
+        const overlapRatio = bestHits / Math.max(1, bestBase);
+        score = Math.round(bestHits * 25 + overlapRatio * 40);
+        // Bonus for matching >60% of tokens
+        if (overlapRatio > 0.6) score += 30;
+        // Bonus for matching >80% of tokens
+        if (overlapRatio > 0.8) score += 20;
       }
     }
 
@@ -265,9 +580,9 @@ function buildStructuredOutline(raw: OutlineDocument, loadedFrom: string): Struc
       const courseTitle = isGenericCourseLabel(entry.course)
         ? cleanCourseFromFileName(file)
         : titleCase(String(entry.course));
-      const topics = Array.isArray(entry.topics)
+      const rawTopics: StructuredTopic[] = Array.isArray(entry.topics)
         ? entry.topics
-            .filter((topic) => topic && typeof topic === "object")
+            .filter((topic) => topic && typeof topic === "object" && (topic.topic_number || topic.topic_title))
             .map((topic) => ({
               number:
                 typeof topic.topic_number === "string"
@@ -276,7 +591,7 @@ function buildStructuredOutline(raw: OutlineDocument, loadedFrom: string): Struc
               title: titleCase(String(topic.topic_title ?? "Untitled Topic")),
               subtopics: Array.isArray(topic.subtopics)
                 ? topic.subtopics
-                    .filter((subtopic) => subtopic && typeof subtopic === "object")
+                    .filter((subtopic) => subtopic && typeof subtopic === "object" && (subtopic.subtopic_number || subtopic.subtopic_title))
                     .map((subtopic) => ({
                       number:
                         typeof subtopic.subtopic_number === "string"
@@ -288,7 +603,8 @@ function buildStructuredOutline(raw: OutlineDocument, loadedFrom: string): Struc
                             .filter(
                               (minorTopic) =>
                                 minorTopic &&
-                                typeof minorTopic === "object",
+                                typeof minorTopic === "object" &&
+                                (minorTopic.minor_topic_number || minorTopic.minor_topic_title),
                             )
                             .map((minorTopic) => ({
                               number:
@@ -307,6 +623,13 @@ function buildStructuredOutline(raw: OutlineDocument, loadedFrom: string): Struc
                 : [],
             }))
         : [];
+
+      // Apply dedup and noise filtering
+      const topics = deduplicateTopics(rawTopics).map((topic) => {
+        const cleaned = filterNoiseFromTopic(topic);
+        const fixedNumbers = fixMinorTopicNumbers(cleaned);
+        return { ...fixedNumbers, subtopics: deduplicateSubtopics(fixedNumbers.subtopics) };
+      });
 
       courses.push({
         title: courseTitle,
@@ -338,65 +661,26 @@ function parseSemesterFromRelativePath(relativePath?: string) {
 }
 
 function mergeTopics(existing: StructuredTopic[], incoming: StructuredTopic[]) {
-  const byKey = new Map<string, StructuredTopic>();
-  for (const topic of existing) {
-    const key = `${topic.number ?? ""}|${normalize(topic.title)}`;
-    byKey.set(key, {
+  // Combine all topics and run them through the dedup pipeline
+  // so cross-document duplicates (same topic_number, different casing/stubs) are merged.
+  const all = [
+    ...existing.map((topic) => ({
       ...topic,
       subtopics: topic.subtopics.map((subtopic) => ({
         ...subtopic,
         minorTopics: [...subtopic.minorTopics],
       })),
-    });
-  }
+    })),
+    ...incoming.map((topic) => ({
+      ...topic,
+      subtopics: topic.subtopics.map((subtopic) => ({
+        ...subtopic,
+        minorTopics: [...subtopic.minorTopics],
+      })),
+    })),
+  ];
 
-  for (const topic of incoming) {
-    const key = `${topic.number ?? ""}|${normalize(topic.title)}`;
-    const current = byKey.get(key);
-    if (!current) {
-      byKey.set(key, {
-        ...topic,
-        subtopics: topic.subtopics.map((subtopic) => ({
-          ...subtopic,
-          minorTopics: [...subtopic.minorTopics],
-        })),
-      });
-      continue;
-    }
-
-    const existingSubtopicKeys = new Set(
-      current.subtopics.map((subtopic) => `${subtopic.number ?? ""}|${normalize(subtopic.title)}`),
-    );
-    for (const subtopic of topic.subtopics) {
-      const subtopicKey = `${subtopic.number ?? ""}|${normalize(subtopic.title)}`;
-      if (!existingSubtopicKeys.has(subtopicKey)) {
-        current.subtopics.push(subtopic);
-        existingSubtopicKeys.add(subtopicKey);
-        continue;
-      }
-
-      const target = current.subtopics.find(
-        (item) =>
-          `${item.number ?? ""}|${normalize(item.title)}` === subtopicKey,
-      );
-      if (!target) continue;
-      const minorTopicKeys = new Set(
-        target.minorTopics.map(
-          (minorTopic) =>
-            `${minorTopic.number ?? ""}|${normalize(minorTopic.title)}`,
-        ),
-      );
-      for (const minorTopic of subtopic.minorTopics) {
-        const minorKey = `${minorTopic.number ?? ""}|${normalize(minorTopic.title)}`;
-        if (!minorTopicKeys.has(minorKey)) {
-          target.minorTopics.push(minorTopic);
-          minorTopicKeys.add(minorKey);
-        }
-      }
-    }
-  }
-
-  return Array.from(byKey.values());
+  return deduplicateTopics(all);
 }
 
 function buildStructuredOutlineFromCleanNone(raw: CleanNoneOutline, loadedFrom: string): StructuredOutline {
@@ -415,49 +699,65 @@ function buildStructuredOutlineFromCleanNone(raw: CleanNoneOutline, loadedFrom: 
     >
   >();
 
-  const parseTopics = (topics?: Topic[]) =>
-    Array.isArray(topics)
-      ? topics
-          .filter((topic) => topic && typeof topic === "object")
-          .map((topic) => ({
-            number:
-              typeof topic.topic_number === "string"
-                ? topic.topic_number.trim()
-                : undefined,
-            title: titleCase(String(topic.topic_title ?? "Untitled Topic")),
-            subtopics: Array.isArray(topic.subtopics)
-              ? topic.subtopics
-                  .filter((subtopic) => subtopic && typeof subtopic === "object")
-                  .map((subtopic) => ({
-                    number:
-                      typeof subtopic.subtopic_number === "string"
-                        ? subtopic.subtopic_number.trim()
-                        : undefined,
-                    title: titleCase(String(subtopic.subtopic_title ?? "Untitled Subtopic")),
-                    minorTopics: Array.isArray(subtopic.minor_topics)
-                      ? subtopic.minor_topics
-                          .filter(
-                            (minorTopic) =>
-                              minorTopic &&
-                              typeof minorTopic === "object",
-                          )
-                          .map((minorTopic) => ({
-                            number:
-                              typeof minorTopic.minor_topic_number === "string"
-                                ? minorTopic.minor_topic_number.trim()
-                                : undefined,
-                            title: titleCase(
-                              String(
-                                minorTopic.minor_topic_title ??
-                                  "Untitled Minor Topic",
-                              ),
-                            ),
-                          }))
-                      : [],
-                  }))
-              : [],
-          }))
-      : [];
+  const parseTopics = (topics?: Topic[]): StructuredTopic[] => {
+    if (!Array.isArray(topics)) return [];
+
+    const rawParsed = topics
+      .filter((topic) => topic && typeof topic === "object" && (topic.topic_number || topic.topic_title))
+      .map((topic) => ({
+        number:
+          typeof topic.topic_number === "string"
+            ? topic.topic_number.trim()
+            : undefined,
+        title: titleCase(String(topic.topic_title ?? "Untitled Topic")),
+        subtopics: Array.isArray(topic.subtopics)
+          ? topic.subtopics
+              .filter((subtopic) => subtopic && typeof subtopic === "object" && (subtopic.subtopic_number || subtopic.subtopic_title))
+              .map((subtopic) => ({
+                number:
+                  typeof subtopic.subtopic_number === "string"
+                    ? subtopic.subtopic_number.trim()
+                    : undefined,
+                title: titleCase(String(subtopic.subtopic_title ?? "Untitled Subtopic")),
+                minorTopics: Array.isArray(subtopic.minor_topics)
+                  ? subtopic.minor_topics
+                      .filter(
+                        (minorTopic) =>
+                          minorTopic &&
+                          typeof minorTopic === "object" &&
+                          (minorTopic.minor_topic_number || minorTopic.minor_topic_title),
+                      )
+                      .map((minorTopic) => ({
+                        number:
+                          typeof minorTopic.minor_topic_number === "string"
+                            ? minorTopic.minor_topic_number.trim()
+                            : undefined,
+                        title: titleCase(
+                          String(
+                            minorTopic.minor_topic_title ??
+                              "Untitled Minor Topic",
+                          ),
+                        ),
+                      }))
+                  : [],
+              }))
+          : [],
+      }));
+
+    // 1. Deduplicate topics with the same topic_number (stub vs full content)
+    const deduped = deduplicateTopics(rawParsed);
+
+    // 2. For each topic, deduplicate subtopics with the same subtopic_number
+    //    and filter out noise/boilerplate entries
+    return deduped.map((topic) => {
+      const cleaned = filterNoiseFromTopic(topic);
+      const fixedNumbers = fixMinorTopicNumbers(cleaned);
+      return {
+        ...fixedNumbers,
+        subtopics: deduplicateSubtopics(fixedNumbers.subtopics),
+      };
+    });
+  };
 
   for (const doc of Object.values(documentsMap)) {
     if (!doc || typeof doc !== "object" || doc.error) continue;
@@ -798,9 +1098,11 @@ export function resolveProgrammeOutlineSelection(
         .slice(0, 40),
       topics: (selectedCourse ? selectedCourse.topics : topicPool)
         .map((topic) => `${topic.number ?? ""} ${topic.title}`.trim())
+        .filter((label) => !isNoisePlannerLabel(label))
         .slice(0, 60),
       subtopics: (selectedTopic ? selectedTopic.subtopics : subtopicPool)
         .map((subtopic) => `${subtopic.number ?? ""} ${subtopic.title}`.trim())
+        .filter((label) => !isNoisePlannerLabel(label))
         .slice(0, 80),
       minorTopics: (selectedSubtopic
         ? selectedSubtopic.minorTopics
@@ -810,6 +1112,7 @@ export function resolveProgrammeOutlineSelection(
           (minorTopic) =>
             `${minorTopic.number ?? ""} ${minorTopic.title}`.trim(),
         )
+        .filter((label) => !isNoisePlannerLabel(label))
         .slice(0, 120),
     },
   };

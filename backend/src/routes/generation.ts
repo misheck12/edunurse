@@ -221,6 +221,12 @@ function isUuid(value: string) {
   return UUID_REGEX.test(value);
 }
 
+// Vector literals are generated internally from embedding results. Validate format
+// before using Prisma.raw() to ensure only numeric characters are present.
+function isSafeVectorLiteral(value: string) {
+  return /^\[[\d., eE+\-]+\]$/.test(value);
+}
+
 function blendRetrievalScore(keywordScore: number, vectorScore: number) {
   // keyword score remains dominant; vector signal lifts semantically related chunks.
   return keywordScore + vectorScore * env.RETRIEVAL_VECTOR_WEIGHT;
@@ -351,16 +357,22 @@ function buildLessonRetrievalPlan(
     });
   });
 
+  // Round-robin fallback offset ensures sections without strong keyword matches
+  // receive different chunks rather than always the same top-3.
+  let fallbackOffset = 0;
   return templates.map((template) => {
-    const topChunkIds = topChunkIdsForSection(
-      chunks,
-      template.query,
-      template.sectionId.startsWith("lesson_presentation_objective_") ? 6 : 4,
-    );
-    return {
-      ...template,
-      chunkIds: topChunkIds.length > 0 ? topChunkIds : chunks.slice(0, 3).map((chunk) => chunk.chunkId),
-    };
+    const limit = template.sectionId.startsWith("lesson_presentation_objective_") ? 6 : 4;
+    const topChunkIds = topChunkIdsForSection(chunks, template.query, limit);
+    if (topChunkIds.length > 0) {
+      return { ...template, chunkIds: topChunkIds };
+    }
+    // Spread fallback chunks across sections so each gets a different slice.
+    const fallbackChunks: string[] = [];
+    for (let i = 0; i < Math.min(3, chunks.length); i += 1) {
+      fallbackChunks.push(chunks[(fallbackOffset + i) % chunks.length].chunkId);
+    }
+    fallbackOffset = (fallbackOffset + 2) % Math.max(1, chunks.length);
+    return { ...template, chunkIds: fallbackChunks };
   });
 }
 
@@ -374,20 +386,28 @@ async function lookupVectorScores(
     return new Map<string, number>();
   }
 
-  const inList = safeIds.map((id) => `'${id}'::uuid`).join(", ");
-  const sql = `
-    SELECT id::text AS id, (1 - (embedding <=> '${queryVectorLiteral}'::vector))::float8 AS score
-    FROM curriculum_chunks
-    WHERE id IN (${inList})
-      AND embedding IS NOT NULL
-    ORDER BY embedding <=> '${queryVectorLiteral}'::vector
-    LIMIT ${Math.max(20, safeIds.length)}
-  `;
+  // Reject any vector literal that doesn't match the expected numeric format.
+  if (!isSafeVectorLiteral(queryVectorLiteral)) {
+    return new Map<string, number>();
+  }
 
-  const rows = (await app.prisma.$queryRawUnsafe(sql)) as Array<{
-    id: string;
-    score: number | string | null;
-  }>;
+  const idSql = Prisma.join(
+    safeIds.map((id) => Prisma.sql`${id}::uuid`),
+    ", ",
+  );
+  const vectorRaw = Prisma.raw(queryVectorLiteral);
+  const limitRaw = Prisma.raw(String(Math.max(20, safeIds.length)));
+
+  const rows = await app.prisma.$queryRaw<
+    Array<{ id: string; score: number | string | null }>
+  >(Prisma.sql`
+    SELECT id::text AS id, (1 - (embedding <=> ${vectorRaw}::vector))::float8 AS score
+    FROM curriculum_chunks
+    WHERE id IN (${idSql})
+      AND embedding IS NOT NULL
+    ORDER BY embedding <=> ${vectorRaw}::vector
+    LIMIT ${limitRaw}
+  `);
 
   const scores = new Map<string, number>();
   for (const row of rows) {
@@ -579,6 +599,7 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
 
     let effectiveCourse = body.course;
     let effectiveTopic = body.topic;
+    let resolvedSourceIds: string[] = [];
     const effectivePromptInput: Record<string, unknown> = {
       ...promptInput,
     };
@@ -664,6 +685,21 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
       );
     }
 
+    // For Lesson Plans where the outline resolved a canonical course, narrow retrieval
+    // to only chunks from that course's source document. Falls back to cross-source
+    // retrieval automatically if no matching sources are found.
+    if (body.documentType === "Lesson Plan" && effectiveCourse && selectedVersion) {
+      const matchedSources = await app.prisma.curriculumSource.findMany({
+        where: {
+          status: "indexed",
+          name: { contains: effectiveCourse, mode: "insensitive" },
+          versions: { some: { curriculumVersionId: selectedVersion } },
+        },
+        select: { id: true },
+      });
+      resolvedSourceIds = matchedSources.map((s) => s.id);
+    }
+
     const promptVersion = await app.prisma.promptVersion.findFirst({
       where: {
         documentType: toDocumentTypeDb(body.documentType),
@@ -747,6 +783,13 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
             },
           ];
 
+    // Lesson Plans need more context chunks to cover all sections (intro, objectives,
+    // presentation table, summary, evaluation, assignment, references).
+    const effectiveRetrievalLimit =
+      body.documentType === "Lesson Plan"
+        ? Math.max(env.RETRIEVAL_TOP_K, env.RETRIEVAL_LESSON_PLAN_TOP_K)
+        : env.RETRIEVAL_TOP_K;
+
     const focused = await app.prisma.curriculumChunk.findMany({
       where: {
         curriculumVersionId: selectedVersion,
@@ -756,6 +799,8 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
         AND: [
           { OR: programmeFilters },
           ...(yearFilters.length > 0 ? [{ OR: yearFilters }] : []),
+          // When the outline resolves a specific course, narrow to its source document.
+          ...(resolvedSourceIds.length > 0 ? [{ sourceId: { in: resolvedSourceIds } }] : []),
           { OR: keywordFilters },
         ],
       },
@@ -778,9 +823,12 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
               source: {
                 status: "indexed",
               },
-            AND: [
+              AND: [
                 { OR: programmeFilters },
                 ...(yearFilters.length > 0 ? [{ OR: yearFilters }] : []),
+                // If we resolved a source document, prefer its chunks even in fallback
+                // to avoid pulling context from unrelated courses.
+                ...(resolvedSourceIds.length > 0 ? [{ sourceId: { in: resolvedSourceIds } }] : []),
               ],
             },
             take: retrievalCandidateLimit,
@@ -846,7 +894,9 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
           .join(" ");
         const embeddingResult = await embedTextsWithFallback([embeddingQuery]);
         const queryVector = embeddingResult.vectors[0];
-        if (queryVector) {
+        // Skip vector scoring when the local hash-based fallback is used — it produces
+        // no semantic signal and amplifies noise in the blend score.
+        if (queryVector && embeddingResult.provider !== "local") {
           const vectorLiteral = vectorToSqlLiteral(queryVector);
           vectorScores = await lookupVectorScores(
             app,
@@ -878,22 +928,31 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const rankedCandidates = allCandidates
+    // First pass: compute raw combined keyword + FTS scores for all candidates.
+    const withRawScores = allCandidates.map((item) => {
+      const ftsScore = ftsScores.get(item.chunk.id) ?? 0;
+      const rawKeywordScore = item.keywordScore + ftsScore * env.RETRIEVAL_FTS_WEIGHT;
+      const vectorScore = vectorScores.get(item.chunk.id) ?? 0;
+      return { ...item, rawKeywordScore, vectorScore };
+    });
+
+    // Normalize keyword scores to [0, 1] so that character-frequency matches do not
+    // overwhelm the semantic vector signal when blending the final rank score.
+    const maxKeywordScore = Math.max(1, ...withRawScores.map((item) => item.rawKeywordScore));
+    const rankedCandidates = withRawScores
       .map((item) => {
-        const ftsScore = ftsScores.get(item.chunk.id) ?? 0;
-        const keywordScore = item.keywordScore + ftsScore * env.RETRIEVAL_FTS_WEIGHT;
-        const vectorScore = vectorScores.get(item.chunk.id) ?? 0;
-        const rerankScore = blendRetrievalScore(keywordScore, vectorScore);
+        const normalizedKeyword = item.rawKeywordScore / maxKeywordScore;
+        const rerankScore = normalizedKeyword + item.vectorScore * (env.RETRIEVAL_VECTOR_WEIGHT / 40);
         return {
           ...item,
-          keywordScore,
-          vectorScore,
+          keywordScore: item.rawKeywordScore,
+          vectorScore: item.vectorScore,
           rerankScore,
         };
       })
       .sort((a, b) => b.rerankScore - a.rerankScore);
 
-    const retrievedChunks = rankedCandidates.slice(0, retrievalLimit);
+    const retrievedChunks = rankedCandidates.slice(0, effectiveRetrievalLimit);
     const hasCoverage = retrievedChunks.length >= minimalCoverage;
 
     const baseRun = await app.prisma.generationRun.create({
@@ -950,14 +1009,20 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(409).send(flagged);
     }
 
-    const promptChunks: RetrievalChunkForPrompt[] = retrievedChunks.map((entry) => ({
-      chunkId: entry.chunk.id,
-      sourceId: entry.chunk.sourceId,
-      sourceName: entry.chunk.source.name,
-      page: entry.chunk.page ?? null,
-      heading: entry.chunk.heading ?? null,
-      text: entry.chunk.text,
-    }));
+    const promptChunks: RetrievalChunkForPrompt[] = retrievedChunks.map((entry) => {
+      const meta = safeRecord(entry.chunk.metadataJson);
+      return {
+        chunkId: entry.chunk.id,
+        sourceId: entry.chunk.sourceId,
+        sourceName: entry.chunk.source.name,
+        page: entry.chunk.page ?? null,
+        heading: entry.chunk.heading ?? null,
+        text: entry.chunk.text,
+        unit: typeof meta.unit === "string" ? meta.unit : undefined,
+        topic: typeof meta.topic === "string" ? meta.topic : undefined,
+        subtopic: typeof meta.subtopic === "string" ? meta.subtopic : undefined,
+      };
+    });
 
     const lessonRetrievalPlan =
       body.documentType === "Lesson Plan"

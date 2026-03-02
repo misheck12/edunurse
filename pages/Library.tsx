@@ -16,6 +16,7 @@ import {
 } from "../src/services/backendApi";
 import { UpgradeBanner } from "../src/components/UpgradeBanner";
 import { PaymentModal } from "../src/components/PaymentModal";
+import SEO from "../src/components/SEO";
 
 const PAGE_SIZE = 20;
 
@@ -115,6 +116,12 @@ const Library: React.FC = () => {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
+      <SEO
+        title="My Documents"
+        description="Browse and manage your lesson plans, OSCE stations, clinical teaching plans, and assessment documents."
+        canonicalPath="/library"
+        noIndex
+      />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 mb-2">
           My Documents Library

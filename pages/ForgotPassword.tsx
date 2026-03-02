@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, ArrowLeft } from "lucide-react";
+import SEO from "../src/components/SEO";
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -63,6 +64,7 @@ const ForgotPassword: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+      <SEO title="Forgot Password" description="Reset your EduNurse Pro password." canonicalPath="/forgot-password" noIndex />
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900 mb-2">Forgot Password?</h1>
         <p className="text-slate-600 mb-6">

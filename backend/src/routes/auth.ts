@@ -44,13 +44,29 @@ const authUserSelect = {
 } as const;
 
 const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/login", async (request) => {
+  app.post("/login", {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "1 minute",
+        errorResponseBuilder: () => ({
+          statusCode: 429,
+          error: "Too Many Requests",
+          message: "Too many login attempts. Please try again in a minute.",
+        }),
+      },
+    },
+  }, async (request) => {
     const body = loginSchema.parse(request.body);
 
-    if (
-      body.email.toLowerCase() !== env.SUPERADMIN_EMAIL.toLowerCase() ||
-      body.password !== env.SUPERADMIN_PASSWORD
-    ) {
+    const emailMatch =
+      body.email.toLowerCase() === env.SUPERADMIN_EMAIL.toLowerCase();
+    const passwordBuffer = Buffer.from(body.password);
+    const expectedBuffer = Buffer.from(env.SUPERADMIN_PASSWORD);
+    const passwordMatch =
+      passwordBuffer.length === expectedBuffer.length &&
+      crypto.timingSafeEqual(passwordBuffer, expectedBuffer);
+    if (!emailMatch || !passwordMatch) {
       throw app.httpErrors.unauthorized("Invalid email or password.");
     }
 
@@ -95,7 +111,19 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.post("/client/signup", async (request, reply) => {
+  app.post("/client/signup", {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 minute",
+        errorResponseBuilder: () => ({
+          statusCode: 429,
+          error: "Too Many Requests",
+          message: "Too many signup attempts. Please try again later.",
+        }),
+      },
+    },
+  }, async (request, reply) => {
     const body = clientSignupSchema.parse(request.body);
     const email = body.email.trim().toLowerCase();
     const nrc = body.nrc.trim().toUpperCase();
@@ -177,7 +205,19 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post("/client/signin", async (request) => {
+  app.post("/client/signin", {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "1 minute",
+        errorResponseBuilder: () => ({
+          statusCode: 429,
+          error: "Too Many Requests",
+          message: "Too many login attempts. Please try again in a minute.",
+        }),
+      },
+    },
+  }, async (request) => {
     const body = clientSigninSchema.parse(request.body);
     const email = body.email.trim().toLowerCase();
 

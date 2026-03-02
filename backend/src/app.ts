@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
 import Fastify from "fastify";
 import { env } from "./config.js";
@@ -18,6 +19,14 @@ export function buildApp() {
     contentSecurityPolicy: false,
   });
 
+  // Global rate limiting - prevents brute-force and DoS
+  void app.register(rateLimit, {
+    global: true,
+    max: 120,            // 120 requests per minute per IP (general)
+    timeWindow: "1 minute",
+    keyGenerator: (request) => request.ip,
+  });
+
   const corsOrigins = env.CORS_ORIGIN
     .split(",")
     .map((origin) => origin.trim())
@@ -28,6 +37,12 @@ export function buildApp() {
       : corsOrigins.length === 1
         ? corsOrigins[0]
         : corsOrigins;
+
+  if (env.NODE_ENV === "production" && corsOriginConfig === true) {
+    app.log.warn(
+      "CORS is configured to allow all origins ('*'). Set CORS_ORIGIN to a specific domain in production."
+    );
+  }
 
   void app.register(cors, {
     origin: corsOriginConfig,

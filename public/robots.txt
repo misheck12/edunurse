@@ -1,0 +1,13 @@
+# EduNurse Pro – Robots.txt
+# https://www.robotstxt.org/
+
+User-agent: *
+Allow: /
+Disallow: /ops/
+Disallow: /api/
+Disallow: /editor/
+Disallow: /exports/
+Disallow: /settings/
+
+# Sitemap
+Sitemap: https://edunurse.pro/sitemap.xml

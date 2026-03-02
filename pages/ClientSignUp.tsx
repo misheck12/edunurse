@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../src/context/AuthContext";
 import { signupClient } from "../src/services/backendApi";
+import SEO from "../src/components/SEO";
 
 const ClientSignUp: React.FC = () => {
   const navigate = useNavigate();
@@ -58,6 +59,12 @@ const ClientSignUp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-10">
+      <SEO
+        title="Sign Up"
+        description="Create your EduNurse Pro account. Start generating AI-powered, curriculum-aligned lesson plans for nursing and midwifery education."
+        canonicalPath="/signup"
+        keywords="nurse educator signup, create account, nursing lesson plans"
+      />
       <div className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold text-slate-900">Client Sign Up</h1>
         <p className="mt-1 text-sm text-slate-500">
