@@ -1,77 +1,24 @@
 /**
- * Usage Limits Display Component
- * Shows user's current usage and remaining credits
+ * Usage Limits Display Components
+ * Uses shared types and context for consistent data
  */
 
-import React, { useState, useEffect } from "react";
-import { getAuthToken } from "../services/backendApi";
-
-interface UsageLimits {
-  canGenerate: boolean;
-  canExport: boolean;
-  generationsRemaining: number | "unlimited";
-  exportsRemaining: number | "unlimited";
-  planType: "monthly_subscription" | "pay_as_you_go" | "none";
-  message?: string;
-}
-
-interface UsageSummary {
-  planType: string;
-  planName: string;
-  generationsUsed: number;
-  generationsLimit: number | "unlimited";
-  exportsUsed: number;
-  exportsLimit: number | "unlimited";
-  periodStart: Date | null;
-  periodEnd: Date | null;
-}
+import React from "react";
+import { useUsage } from "../context/UsageContext";
+import { formatLimit, getProgressColor, getProgressPercentage } from "../types/subscription";
 
 interface UsageLimitsProps {
   onUpgradeClick?: () => void;
 }
 
 export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
-  const [limits, setLimits] = useState<UsageLimits | null>(null);
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { limits, summary, isLoading } = useUsage();
 
-  useEffect(() => {
-    fetchUsage();
-  }, []);
-
-  const fetchUsage = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/usage`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-      if (data.success) {
-        setLimits(data.data.limits);
-        setSummary(data.data.summary);
-      }
-    } catch (err) {
-      console.error("Failed to fetch usage:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-4 animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-        <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm animate-pulse">
+        <div className="h-4 bg-slate-200 rounded w-1/2 mb-2"></div>
+        <div className="h-3 bg-slate-200 rounded w-3/4"></div>
       </div>
     );
   }
@@ -80,25 +27,8 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
     return null;
   }
 
-  const formatLimit = (value: number | "unlimited") => {
-    return value === "unlimited" ? "∞" : value;
-  };
-
-  const getProgressColor = (used: number, limit: number | "unlimited") => {
-    if (limit === "unlimited") return "bg-green-500";
-    const percentage = (used / limit) * 100;
-    if (percentage >= 90) return "bg-red-500";
-    if (percentage >= 70) return "bg-yellow-500";
-    return "bg-green-500";
-  };
-
-  const getProgressPercentage = (used: number, limit: number | "unlimited") => {
-    if (limit === "unlimited") return 0;
-    return Math.min((used / limit) * 100, 100);
-  };
-
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold">{summary.planName}</h3>
@@ -108,7 +38,7 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
             </p>
           )}
           {summary.periodEnd && summary.planName !== "Welcome Bonus" && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-slate-500">
               {summary.planType === "monthly_subscription"
                 ? `Renews ${new Date(summary.periodEnd).toLocaleDateString()}`
                 : `Valid until ${new Date(summary.periodEnd).toLocaleDateString()}`}
@@ -129,12 +59,12 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
       <div className="mb-4">
         <div className="flex justify-between items-center mb-1">
           <span className="text-sm font-medium">Lesson Plans</span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-slate-500">
             {summary.generationsUsed} / {formatLimit(summary.generationsLimit)}
           </span>
         </div>
         {summary.generationsLimit !== "unlimited" && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-slate-200 rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all ${getProgressColor(
                 summary.generationsUsed,
@@ -160,12 +90,12 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
       <div>
         <div className="flex justify-between items-center mb-1">
           <span className="text-sm font-medium">Exports</span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-slate-500">
             {summary.exportsUsed} / {formatLimit(summary.exportsLimit)}
           </span>
         </div>
         {summary.exportsLimit !== "unlimited" && summary.exportsLimit > 0 && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-slate-200 rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all ${getProgressColor(
                 summary.exportsUsed,
@@ -181,7 +111,7 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
           </div>
         )}
         {summary.planName === "Welcome Bonus" && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Exports available after first purchase
           </p>
         )}
@@ -198,7 +128,7 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
           </p>
           <p className="text-xs text-green-700 mb-2">
             You have {limits.generationsRemaining} free lesson plan generation
-            {limits.generationsRemaining !== 1 ? 's' : ''} to try our platform.
+            {limits.generationsRemaining !== 1 ? "s" : ""} to try our platform.
           </p>
           <p className="text-xs text-orange-700 mb-2">
             ⚠️ Exports are not included in the welcome bonus. Subscribe to export your lesson plans.
@@ -255,51 +185,12 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ onUpgradeClick }) => {
 };
 
 /**
- * Compact usage badge for header/navbar
+ * Compact usage badge for sidebar
  */
 export const UsageBadge: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
-  const [limits, setLimits] = useState<UsageLimits | null>(null);
+  const { limits, isLoading } = useUsage();
 
-  useEffect(() => {
-    fetchLimits();
-  }, []);
-
-  const fetchLimits = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        return;
-      }
-
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-      if (!apiBaseUrl) {
-        console.log("API base URL not configured");
-        return;
-      }
-
-      const response = await fetch(
-        `${apiBaseUrl}/payments/usage`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.status === 401) {
-        return;
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setLimits(data.data.limits);
-      }
-    } catch (err) {
-      console.error("Failed to fetch limits:", err);
-    }
-  };
-
-  if (!limits) return null;
+  if (isLoading || !limits) return null;
 
   const getBadgeColor = () => {
     if (limits.planType === "monthly_subscription") return "bg-green-100 text-green-800";
@@ -312,23 +203,25 @@ export const UsageBadge: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
         return "bg-yellow-100 text-yellow-800";
       return "bg-blue-100 text-blue-800";
     }
-    return "bg-gray-100 text-gray-800";
+    return "bg-slate-100 text-slate-700";
   };
 
   const getBadgeText = () => {
-    if (limits.planType === "monthly_subscription") return "Unlimited";
+    if (limits.planType === "monthly_subscription") return "Pro";
     if (limits.planType === "pay_as_you_go") {
       return `${limits.generationsRemaining} left`;
     }
-    return "No plan";
+    return "Free";
   };
 
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs font-medium ${getBadgeColor()} hover:opacity-80 transition`}
+      className={`px-3 py-1.5 rounded-lg text-xs font-medium ${getBadgeColor()} hover:opacity-80 transition w-full text-center`}
     >
       {getBadgeText()}
     </button>
   );
 };
+
+export default UsageLimits;

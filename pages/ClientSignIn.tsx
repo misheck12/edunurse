@@ -44,7 +44,7 @@ const ClientSignIn: React.FC = () => {
         description="Sign in to EduNurse Pro. Access AI-powered lesson plan generation for nursing and midwifery educators."
         canonicalPath="/signin"
       />
-      <div className="mx-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="mx-auto w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold text-slate-900">Client Sign In</h1>
         <p className="mt-1 text-sm text-slate-500">
           Sign in to your educator account.

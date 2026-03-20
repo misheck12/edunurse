@@ -3,18 +3,9 @@
  * Shows before generation to confirm and display remaining credits
  */
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { AlertCircle, Sparkles, Zap } from "lucide-react";
-import { getAuthToken } from "../services/backendApi";
-
-interface UsageLimits {
-  canGenerate: boolean;
-  canExport: boolean;
-  generationsRemaining: number | "unlimited";
-  exportsRemaining: number | "unlimited";
-  planType: "monthly_subscription" | "pay_as_you_go" | "none";
-  message?: string;
-}
+import { useUsage } from "../context/UsageContext";
 
 interface PreGenerationModalProps {
   isOpen: boolean;
@@ -29,48 +20,14 @@ export const PreGenerationModal: React.FC<PreGenerationModalProps> = ({
   onConfirm,
   onUpgrade,
 }) => {
-  const [limits, setLimits] = useState<UsageLimits | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { limits, isLoading: loading, refresh } = useUsage();
 
-  useEffect(() => {
+  // Refresh limits when modal opens
+  React.useEffect(() => {
     if (isOpen) {
-      fetchLimits();
+      refresh();
     }
-  }, [isOpen]);
-
-  const fetchLimits = async () => {
-    try {
-      setLoading(true);
-      const token = getAuthToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/usage`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.status === 401) {
-        setLoading(false);
-        return;
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setLimits(data.data.limits);
-      }
-    } catch (err) {
-      console.error("Failed to fetch limits:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isOpen, refresh]);
 
   if (!isOpen) return null;
 

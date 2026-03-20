@@ -566,7 +566,7 @@ const CreateWizard: React.FC = () => {
         </div>
 
         {/* Card Container */}
-        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-100 min-h-[500px] flex flex-col">
+        <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-100 min-h-[500px] flex flex-col">
           <div className="w-full h-1 bg-slate-100">
             <div className="h-full bg-blue-600 rounded-r-full transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }}></div>
           </div>

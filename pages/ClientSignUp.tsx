@@ -3,6 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../src/context/AuthContext";
 import { signupClient } from "../src/services/backendApi";
 import SEO from "../src/components/SEO";
+import {
+  identityDocumentErrorMessage,
+  isValidIdentityDocument,
+  normalizeIdentityDocument,
+} from "../src/utils/identityDocument";
 
 const ClientSignUp: React.FC = () => {
   const navigate = useNavigate();
@@ -34,13 +39,18 @@ const ClientSignUp: React.FC = () => {
       return;
     }
 
+    if (!isValidIdentityDocument(form.nrc)) {
+      setErrorMessage(identityDocumentErrorMessage);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await signupClient({
         fullName: form.fullName,
         email: form.email,
         phoneNumber: form.phoneNumber,
-        nrc: form.nrc,
+        nrc: normalizeIdentityDocument(form.nrc),
         school: form.school,
         studentNumber: form.studentNumber,
         information: form.information,
@@ -65,7 +75,7 @@ const ClientSignUp: React.FC = () => {
         canonicalPath="/signup"
         keywords="nurse educator signup, create account, nursing lesson plans"
       />
-      <div className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold text-slate-900">Client Sign Up</h1>
         <p className="mt-1 text-sm text-slate-500">
           Create your educator account. All fields are required.
@@ -122,17 +132,16 @@ const ClientSignUp: React.FC = () => {
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700">
-              NRC Number
+              NRC / Passport Number
             </span>
             <input
               type="text"
               value={form.nrc}
               onChange={(event) => setField("nrc", event.target.value)}
-              placeholder="123456/12/1"
+              placeholder="123456/12/1 or AB1234567"
               required
               disabled={isSubmitting}
-              pattern="\d{6}/\d{2}/\d{1}"
-              title="NRC must be in format: 123456/12/1"
+              title={identityDocumentErrorMessage}
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>

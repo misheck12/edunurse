@@ -53,6 +53,48 @@ function normalizeTemplateSections(value: unknown): TemplateSectionShape[] {
     .filter((item): item is TemplateSectionShape => Boolean(item));
 }
 
+function ensureTemplateSections(
+  documentType: BackendDocumentType,
+  value: unknown,
+): TemplateSectionShape[] {
+  const sections = normalizeTemplateSections(value);
+  const fallbackSections = normalizeTemplateSections(
+    templateSectionsForType(documentType),
+  );
+
+  if (documentType !== "Lesson Plan") {
+    return sections.length > 0 ? sections : fallbackSections;
+  }
+
+  const nextSections = sections.length > 0 ? [...sections] : [...fallbackSections];
+  const hasAssignment = nextSections.some((section) => {
+    const key = section.key?.toLowerCase() ?? "";
+    const title = section.title?.toLowerCase() ?? "";
+    return key.includes("assignment") || title.includes("assignment");
+  });
+
+  if (!hasAssignment) {
+    const assignmentSection: TemplateSectionShape = {
+      key: "assignment",
+      title: "Assignment",
+      type: "list",
+    };
+    const referenceIndex = nextSections.findIndex((section) => {
+      const key = section.key?.toLowerCase() ?? "";
+      const title = section.title?.toLowerCase() ?? "";
+      return key.includes("reference") || title.includes("reference");
+    });
+
+    if (referenceIndex === -1) {
+      nextSections.push(assignmentSection);
+    } else {
+      nextSections.splice(referenceIndex, 0, assignmentSection);
+    }
+  }
+
+  return nextSections;
+}
+
 function sampleListItems(title: string): string[] {
   if (/objective/i.test(title)) {
     return [
@@ -73,6 +115,13 @@ function sampleListItems(title: string): string[] {
       "Ask oral questions linked to the objective.",
       "Observe learner participation and responses.",
       "Use short formative checklist for competence.",
+    ];
+  }
+  if (/assignment/i.test(title)) {
+    return [
+      "Read the recommended module section before the next class.",
+      "Answer short practice questions based on the lesson objectives.",
+      "Prepare one applied clinical example for discussion.",
     ];
   }
   return [
@@ -202,6 +251,7 @@ function templateSectionsForType(
         { key: "outcomes", title: "Learning Outcomes", type: "list" },
         { key: "lesson_presentation", title: "Lesson Presentation", type: "table" },
         { key: "evaluation", title: "Evaluation", type: "list" },
+        { key: "assignment", title: "Assignment", type: "list" },
         { key: "references", title: "References", type: "list" },
       ];
     case "OSCE Station":
@@ -438,9 +488,10 @@ const Templates: React.FC = () => {
           templateJson: {
             ...current,
             description: form.description.trim(),
-            sections: Array.isArray(current.sections)
-              ? current.sections
-              : templateSectionsForType(editingTemplate.documentType),
+            sections: ensureTemplateSections(
+              editingTemplate.documentType,
+              current.sections,
+            ),
           },
         });
       }
@@ -487,7 +538,13 @@ const Templates: React.FC = () => {
         name: nextName.length >= 2 ? nextName : "Template Copy",
         documentType: template.documentType,
         templateSchemaVersion: template.templateSchemaVersion || 1,
-        templateJson: sourceJson,
+        templateJson: {
+          ...sourceJson,
+          sections: ensureTemplateSections(
+            template.documentType,
+            sourceJson.sections,
+          ),
+        },
       });
 
       setNotice(`Template duplicated: ${template.name}`);
@@ -511,7 +568,12 @@ const Templates: React.FC = () => {
     ? normalizeTemplateJson(selectedTemplate.templateJson)
     : {};
   const selectedTemplateSections = normalizeTemplateSections(
-    selectedTemplateJson.sections,
+    selectedTemplate
+      ? ensureTemplateSections(
+          selectedTemplate.documentType,
+          selectedTemplateJson.sections,
+        )
+      : [],
   );
   const selectedTemplateDescription =
     typeof selectedTemplateJson.description === "string"
@@ -738,7 +800,7 @@ const Templates: React.FC = () => {
 
       {selectedTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 sm:p-6">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">{selectedTemplate.name}</h3>
@@ -827,7 +889,7 @@ const Templates: React.FC = () => {
 
       {showEditor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 p-5">
               <h3 className="text-lg font-semibold text-slate-900">
                 {editorMode === "create" ? "Create Template" : "Edit Template"}

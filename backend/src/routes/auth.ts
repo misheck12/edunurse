@@ -5,6 +5,11 @@ import { env } from "../config.js";
 import { hashPassword, verifyPassword } from "../services/auth-password.js";
 import { signAuthToken } from "../services/auth-token.js";
 import { sendWelcomeEmail } from "../services/email.js";
+import {
+  IDENTITY_DOCUMENT_ERROR_MESSAGE,
+  isValidIdentityDocument,
+  normalizeIdentityDocument,
+} from "../services/identity-document.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -16,7 +21,10 @@ const clientSignupSchema = z.object({
   password: z.string().min(8),
   fullName: z.string().min(2),
   phoneNumber: z.string().min(8),
-  nrc: z.string().regex(/^\d{6}\/\d{2}\/\d{1}$/, "NRC must be in format: 123456/12/1"),
+  nrc: z
+    .string()
+    .trim()
+    .refine(isValidIdentityDocument, IDENTITY_DOCUMENT_ERROR_MESSAGE),
   school: z.string().min(2),
   studentNumber: z.string().min(2),
   information: z.string().optional(),
@@ -126,7 +134,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
   }, async (request, reply) => {
     const body = clientSignupSchema.parse(request.body);
     const email = body.email.trim().toLowerCase();
-    const nrc = body.nrc.trim().toUpperCase();
+    const nrc = normalizeIdentityDocument(body.nrc);
 
     // Check for existing email
     const existingEmail = await app.prisma.user.findUnique({
@@ -146,7 +154,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 
     if (existingNrc) {
       throw app.httpErrors.conflict(
-        "An account with this NRC already exists. If this is your account, please sign in instead."
+        "An account with this NRC or passport number already exists. If this is your account, please sign in instead."
       );
     }
 

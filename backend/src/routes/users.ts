@@ -1,11 +1,17 @@
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { requireUserId } from "../services/auth-helpers.js";
+import { isProfileComplete } from "../services/profile-completion.js";
 import {
   STUDIO_DOCUMENT_SERVICE_KEYS,
   listServiceControls,
   resolveStudioServiceKey,
 } from "../services/service-controls.js";
+import {
+  IDENTITY_DOCUMENT_ERROR_MESSAGE,
+  isValidIdentityDocument,
+  normalizeIdentityDocument,
+} from "../services/identity-document.js";
 
 const updatePreferencesSchema = z.object({
   defaultProgramme: z.string().min(1).nullable().optional(),
@@ -18,6 +24,11 @@ const updatePreferencesSchema = z.object({
 const updateCurrentUserSchema = z.object({
   fullName: z.string().min(2).max(120).optional(),
   phoneNumber: z.string().min(7).max(30).optional(),
+  nrc: z
+    .string()
+    .trim()
+    .refine(isValidIdentityDocument, IDENTITY_DOCUMENT_ERROR_MESSAGE)
+    .optional(),
   school: z.string().min(2).max(240).optional(),
   studentNumber: z.string().min(2).max(120).optional(),
   information: z.string().min(2).max(4000).optional(),
@@ -34,9 +45,11 @@ const userRoutes: FastifyPluginAsync = async (app) => {
         email: true,
         fullName: true,
         phoneNumber: true,
+        nrc: true,
         school: true,
         studentNumber: true,
         information: true,
+        profileCompleted: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -54,33 +67,72 @@ const userRoutes: FastifyPluginAsync = async (app) => {
   app.patch("/me", async (request) => {
     const userId = requireUserId(request);
     const body = updateCurrentUserSchema.parse(request.body);
+    const normalizedNrc =
+      body.nrc !== undefined ? normalizeIdentityDocument(body.nrc) : undefined;
 
     const existing = await app.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true },
+      select: {
+        id: true,
+        fullName: true,
+        phoneNumber: true,
+        nrc: true,
+        school: true,
+        studentNumber: true,
+      },
     });
 
     if (!existing) {
       throw app.httpErrors.notFound("User not found");
     }
 
+    if (normalizedNrc) {
+      const existingNrc = await app.prisma.user.findFirst({
+        where: {
+          nrc: normalizedNrc,
+          id: { not: userId },
+        },
+        select: { id: true },
+      });
+
+      if (existingNrc) {
+        throw app.httpErrors.conflict(
+          "This NRC or passport number is already registered to another account",
+        );
+      }
+    }
+
+    const nextProfile = {
+      fullName: body.fullName?.trim() ?? existing.fullName,
+      phoneNumber: body.phoneNumber?.trim() ?? existing.phoneNumber,
+      nrc: normalizedNrc ?? existing.nrc,
+      school: body.school?.trim() ?? existing.school,
+      studentNumber: body.studentNumber?.trim() ?? existing.studentNumber,
+      profileCompleted: true,
+    };
+    const profileCompleted = isProfileComplete(nextProfile);
+
     return app.prisma.user.update({
       where: { id: userId },
       data: {
-        fullName: body.fullName,
-        phoneNumber: body.phoneNumber,
-        school: body.school,
-        studentNumber: body.studentNumber,
-        information: body.information,
+        fullName: body.fullName?.trim(),
+        phoneNumber: body.phoneNumber?.trim(),
+        nrc: normalizedNrc,
+        school: body.school?.trim(),
+        studentNumber: body.studentNumber?.trim(),
+        information: body.information?.trim(),
+        profileCompleted,
       },
       select: {
         id: true,
         email: true,
         fullName: true,
         phoneNumber: true,
+        nrc: true,
         school: true,
         studentNumber: true,
         information: true,
+        profileCompleted: true,
         role: true,
         isActive: true,
         createdAt: true,

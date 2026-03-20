@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 export const SERVICE_CONTROL_KEYS = [
   "generation",
   "content_expansion",
+  "assignment_support",
+  "chat",
   "exports",
   "curriculum_query",
   "curriculum_planner",
@@ -60,6 +62,20 @@ const SERVICE_CONTROL_DEFINITIONS: ServiceControlDefinition[] = [
     description: "Expand lesson table content with AI.",
     defaultEnabled: true,
     clientMessage: "Content expansion is temporarily unavailable.",
+  },
+  {
+    key: "assignment_support",
+    label: "Assignment Support",
+    description: "Guide students through assignment understanding, practice, and final drafting.",
+    defaultEnabled: true,
+    clientMessage: "Assignment support is temporarily unavailable.",
+  },
+  {
+    key: "chat",
+    label: "AI Chat",
+    description: "Conversational AI assistant for nursing study questions.",
+    defaultEnabled: true,
+    clientMessage: "AI chat is temporarily unavailable.",
   },
   {
     key: "exports",

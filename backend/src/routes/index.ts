@@ -4,6 +4,7 @@ import documentRoutes from "./documents.js";
 import curriculumRoutes from "./curriculum.js";
 import generationRoutes from "./generation.js";
 import exportRoutes from "./exports.js";
+import assignmentSupportRoutes from "./assignment-support.js";
 import adminRoutes from "./admin.js";
 import adminRagRoutes from "./admin-rag.js";
 import userRoutes from "./users.js";
@@ -17,11 +18,13 @@ import adminAnalyticsRoutes from "./admin-analytics.js";
 import transactionRoutes from "./transactions.js";
 import profileRoutes from "./profile.js";
 import adminSettingsRoutes from "./admin-settings.js";
+import chatRoutes from "./chat.js";
 
 export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: "/auth" });
   await app.register(profileRoutes, { prefix: "/profile" });
+  await app.register(chatRoutes, { prefix: "/chat" });
   await app.register(paymentRoutes, { prefix: "/payments" });
   await app.register(subscriptionRoutes, { prefix: "/subscriptions" });
   await app.register(transactionRoutes, { prefix: "/transactions" });
@@ -35,6 +38,7 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(templateRoutes, { prefix: "/templates" });
   await app.register(documentRoutes, { prefix: "/documents" });
   await app.register(curriculumRoutes, { prefix: "/curriculum" });
+  await app.register(assignmentSupportRoutes, { prefix: "/assignment-support" });
   await app.register(generationRoutes, { prefix: "/generation" });
   await app.register(exportRoutes, { prefix: "/exports" });
 };

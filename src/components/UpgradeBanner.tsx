@@ -5,16 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Sparkles, Zap, TrendingUp, X } from "lucide-react";
-import { getAuthToken } from "../services/backendApi";
-
-interface UsageLimits {
-  canGenerate: boolean;
-  canExport: boolean;
-  generationsRemaining: number | "unlimited";
-  exportsRemaining: number | "unlimited";
-  planType: "monthly_subscription" | "pay_as_you_go" | "none";
-  message?: string;
-}
+import { useUsage } from "../context/UsageContext";
 
 interface UpgradeBannerProps {
   onUpgradeClick: () => void;
@@ -29,12 +20,11 @@ export const UpgradeBanner: React.FC<UpgradeBannerProps> = ({
   dismissible = true,
   dismissTtlMinutes = 20,
 }) => {
-  const [limits, setLimits] = useState<UsageLimits | null>(null);
+  const { limits } = useUsage();
   const [dismissed, setDismissed] = useState(false);
   const dismissStorageKey = `banner-dismissed-${variant}`;
 
   useEffect(() => {
-    void fetchLimits();
     if (!dismissible) {
       sessionStorage.removeItem(dismissStorageKey);
       setDismissed(false);
@@ -58,35 +48,6 @@ export const UpgradeBanner: React.FC<UpgradeBannerProps> = ({
 
     setDismissed(false);
   }, [dismissStorageKey, dismissible]);
-
-  const fetchLimits = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/usage`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.status === 401) {
-        return;
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setLimits(data.data.limits);
-      }
-    } catch (err) {
-      console.error("Failed to fetch limits:", err);
-    }
-  };
 
   const handleDismiss = () => {
     setDismissed(true);

@@ -14,9 +14,22 @@ import Editor from './pages/Editor';
 import Library from './pages/Library';
 import Exports from './pages/Exports';
 import Curriculum from './pages/Curriculum';
+import AssignmentSupport from './pages/AssignmentSupport';
 import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 import Help from './pages/Help';
+// New Student Tools
+import DrugCalculator from './pages/DrugCalculator';
+import ClinicalCases from './pages/ClinicalCases';
+import ProcedureChecklists from './pages/ProcedureChecklists';
+import Flashcards from './pages/Flashcards';
+import MedicalTerms from './pages/MedicalTerms';
+import Resources from './pages/Resources';
+import ClinicalLogbook from './pages/ClinicalLogbook';
+import NMCExamPrep from './pages/NMCExamPrep';
+import OSCEPractice from './pages/OSCEPractice';
+import CareerPlacement from './pages/CareerPlacement';
+import UserProfile from './pages/UserProfile';
 import OpsDashboard from './pages/OpsDashboard';
 import OpsOverviewPage from './pages/ops/OpsOverviewPage';
 import OpsUsersPage from './pages/ops/OpsUsersPage';
@@ -30,6 +43,8 @@ import OpsSyllabusPage from './pages/ops/OpsSyllabusPage';
 import OpsSettingsPage from './pages/ops/OpsSettingsPage';
 import { DocumentProvider } from './src/context/DocumentContext';
 import { AuthProvider } from './src/context/AuthContext';
+import { UsageProvider } from './src/context/UsageContext';
+import { FeatureAccessProvider, FeatureGate } from './src/components/FeatureGate';
 import RequireAdmin from './src/components/auth/RequireAdmin';
 import RequireClient from './src/components/auth/RequireClient';
 import PwaManager from './src/components/PwaManager';
@@ -134,22 +149,79 @@ const OpsShell: React.FC = () => (
 
 const ClientShell: React.FC = () => (
   <DocumentProvider>
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/create" element={<CreateWizard />} />
-        <Route path="/editor" element={<Editor />} />
-        <Route path="/editor/:documentId" element={<Editor />} />
-        <Route path="/library" element={<Library />} />
-        <Route path="/exports" element={<Exports />} />
-        <Route path="/curriculum" element={<Curriculum />} />
-        <Route path="/templates" element={<Templates />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
-  </DocumentProvider>
+    <UsageProvider>
+      <FeatureAccessProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/create" element={<CreateWizard />} />
+            <Route path="/editor" element={<Editor />} />
+            <Route path="/editor/:documentId" element={<Editor />} />
+            <Route path="/library" element={<Library />} />
+            <Route path="/exports" element={<Exports />} />
+            <Route path="/curriculum" element={
+              <FeatureGate feature="curriculum_ai">
+                <Curriculum />
+              </FeatureGate>
+            } />
+            <Route path="/assignment-support" element={
+              <FeatureGate feature="assignments">
+                <AssignmentSupport />
+              </FeatureGate>
+            } />
+            <Route path="/templates" element={
+              <FeatureGate feature="templates">
+                <Templates />
+              </FeatureGate>
+            } />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<UserProfile />} />
+          <Route path="/help" element={<Help />} />
+          {/* Student Tools Routes */}
+          <Route path="/drug-calculator" element={<DrugCalculator />} />
+          <Route path="/clinical-cases" element={
+            <FeatureGate feature="clinical_cases">
+              <ClinicalCases />
+            </FeatureGate>
+          } />
+          <Route path="/procedures" element={
+            <FeatureGate feature="procedures">
+              <ProcedureChecklists />
+            </FeatureGate>
+          } />
+          <Route path="/flashcards" element={<Flashcards />} />
+          <Route path="/medical-terms" element={
+            <FeatureGate feature="medical_terms">
+              <MedicalTerms />
+            </FeatureGate>
+          } />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/logbook" element={
+            <FeatureGate feature="clinical_logbook">
+              <ClinicalLogbook />
+            </FeatureGate>
+          } />
+          <Route path="/exam-prep" element={
+            <FeatureGate feature="nmc_exam_prep">
+              <NMCExamPrep />
+            </FeatureGate>
+          } />
+          <Route path="/osce" element={
+            <FeatureGate feature="osce_practice">
+              <OSCEPractice />
+            </FeatureGate>
+          } />
+          <Route path="/career" element={
+            <FeatureGate feature="career">
+              <CareerPlacement />
+            </FeatureGate>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </FeatureAccessProvider>
+  </UsageProvider>
+</DocumentProvider>
 );
 
 const ClientAuthShell: React.FC = () => (

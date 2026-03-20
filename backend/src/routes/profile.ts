@@ -5,12 +5,21 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import {
+  IDENTITY_DOCUMENT_ERROR_MESSAGE,
+  isValidIdentityDocument,
+  normalizeIdentityDocument,
+} from "../services/identity-document.js";
 
 const updateProfileSchema = z.object({
   fullName: z.string().min(1).max(100).optional(),
   email: z.string().email().optional(),
   phoneNumber: z.string().min(10).max(20).optional(),
-  nrc: z.string().regex(/^\d{6}\/\d{2}\/\d{1}$/, "NRC must be in format: 123456/12/1").optional(),
+  nrc: z
+    .string()
+    .trim()
+    .refine(isValidIdentityDocument, IDENTITY_DOCUMENT_ERROR_MESSAGE)
+    .optional(),
   school: z.string().max(200).optional(),
   studentNumber: z.string().max(50).optional(),
   information: z.string().max(1000).optional(),
@@ -123,9 +132,11 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         email: user.email,
         fullName: user.fullName,
         phoneNumber: user.phoneNumber,
+        nrc: user.nrc,
         school: user.school,
         studentNumber: user.studentNumber,
         information: user.information,
+        profileCompleted: user.profileCompleted,
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
@@ -202,7 +213,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
 
     // Check if NRC is being changed and if it's already taken
     if (body.nrc) {
-      const nrcUpper = body.nrc.trim().toUpperCase();
+      const nrcUpper = normalizeIdentityDocument(body.nrc);
       const existingNrc = await app.prisma.user.findFirst({
         where: {
           nrc: nrcUpper,
@@ -211,7 +222,9 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
       });
 
       if (existingNrc) {
-        throw app.httpErrors.conflict("This NRC is already registered to another account");
+        throw app.httpErrors.conflict(
+          "This NRC or passport number is already registered to another account",
+        );
       }
     }
 
@@ -233,7 +246,9 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     if (body.fullName !== undefined) updateData.fullName = body.fullName;
     if (body.email !== undefined) updateData.email = body.email;
     if (body.phoneNumber !== undefined) updateData.phoneNumber = body.phoneNumber;
-    if (body.nrc !== undefined) updateData.nrc = body.nrc.trim().toUpperCase();
+    if (body.nrc !== undefined) {
+      updateData.nrc = normalizeIdentityDocument(body.nrc);
+    }
     if (body.school !== undefined) updateData.school = body.school;
     if (body.studentNumber !== undefined) updateData.studentNumber = body.studentNumber;
     if (body.information !== undefined) updateData.information = body.information;

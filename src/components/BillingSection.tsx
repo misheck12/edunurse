@@ -6,26 +6,8 @@
 import React, { useState, useEffect } from "react";
 import { CreditCard, TrendingUp, Calendar, Download, Sparkles } from "lucide-react";
 import { getAuthToken } from "../services/backendApi";
-
-interface UsageLimits {
-  canGenerate: boolean;
-  canExport: boolean;
-  generationsRemaining: number | "unlimited";
-  exportsRemaining: number | "unlimited";
-  planType: "monthly_subscription" | "pay_as_you_go" | "none";
-  message?: string;
-}
-
-interface UsageSummary {
-  planType: string;
-  planName: string;
-  generationsUsed: number;
-  generationsLimit: number | "unlimited";
-  exportsUsed: number;
-  exportsLimit: number | "unlimited";
-  periodStart: Date | null;
-  periodEnd: Date | null;
-}
+import { useUsage } from "../context/UsageContext";
+import { formatLimit, getProgressColor, getProgressPercentage } from "../types/subscription";
 
 interface Transaction {
   id: string;
@@ -43,16 +25,15 @@ interface BillingSectionProps {
 export const BillingSection: React.FC<BillingSectionProps> = ({
   onUpgradeClick,
 }) => {
-  const [limits, setLimits] = useState<UsageLimits | null>(null);
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
+  const { limits, summary, isLoading: usageLoading } = useUsage();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchData();
+    fetchTransactions();
   }, []);
 
-  const fetchData = async () => {
+  const fetchTransactions = async () => {
     try {
       setLoading(true);
       const token = getAuthToken();
@@ -60,25 +41,6 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
       if (!token) {
         setLoading(false);
         return;
-      }
-
-      // Fetch usage
-      const usageResponse = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/usage`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (usageResponse.status === 401) {
-        setLoading(false);
-        return;
-      }
-
-      const usageData = await usageResponse.json();
-      if (usageData.success) {
-        setLimits(usageData.data.limits);
-        setSummary(usageData.data.summary);
       }
 
       // Fetch recent transactions
@@ -102,23 +64,6 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
     }
   };
 
-  const formatLimit = (value: number | "unlimited") => {
-    return value === "unlimited" ? "∞" : value;
-  };
-
-  const getProgressPercentage = (used: number, limit: number | "unlimited") => {
-    if (limit === "unlimited") return 0;
-    return Math.min((used / limit) * 100, 100);
-  };
-
-  const getProgressColor = (used: number, limit: number | "unlimited") => {
-    if (limit === "unlimited") return "bg-green-500";
-    const percentage = (used / limit) * 100;
-    if (percentage >= 90) return "bg-red-500";
-    if (percentage >= 70) return "bg-yellow-500";
-    return "bg-green-500";
-  };
-
   const getPlanBadgeColor = (planType: string) => {
     switch (planType) {
       case "monthly_subscription":
@@ -126,11 +71,11 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
       case "pay_as_you_go":
         return "bg-blue-100 text-blue-800 border-blue-200";
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
+        return "bg-slate-100 text-slate-800 border-slate-200";
     }
   };
 
-  if (loading) {
+  if (loading || usageLoading) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-5 animate-pulse">
         <div className="h-6 bg-slate-200 rounded w-1/3 mb-4"></div>

@@ -1,5 +1,7 @@
+import React from 'react';
 import { Document, Template, CurriculumModule } from './types';
-import { BookOpen, Activity, ClipboardList, Thermometer, GraduationCap, FileText, Settings, HelpCircle, LayoutDashboard, FolderOpen, BrainCircuit, FileDown } from 'lucide-react';
+import { BookOpen, Activity, Calendar, ClipboardList, Thermometer, GraduationCap, FileText, Settings, HelpCircle, LayoutDashboard, FolderOpen, BrainCircuit, FileDown, Calculator, Stethoscope, CheckSquare, Layers, BookMarked, Languages, Briefcase, Target, PenTool, Lightbulb, LucideIcon } from 'lucide-react';
+import type { FeatureKey } from './src/components/FeatureGate';
 
 export const RECENT_DOCS: Document[] = [
   { id: '1', title: 'Postpartum Hemorrhage: Theory Lesson', type: 'Lesson Plan', lastEdited: '2 mins ago', status: 'Draft', programme: 'Midwifery' },
@@ -27,22 +29,43 @@ export const CURRICULUM_DATA: CurriculumModule = {
   prerequisites: 'MW-104'
 };
 
-export const SIDEBAR_ITEMS = [
-  { name: 'Document Studio', icon: LayoutDashboard, path: '/' },
-  { name: 'Create New', icon: Activity, path: '/create' },
-  { name: 'My Documents', icon: FolderOpen, path: '/library' },
-  { name: 'Exported Files', icon: FileDown, path: '/exports' },
-  { name: 'Template Library', icon: FileText, path: '/templates' },
-  { name: 'Curriculum Intelligence', icon: BrainCircuit, path: '/curriculum' },
-  { name: 'Settings', icon: Settings, path: '/settings' },
-  { name: 'Help & Support', icon: HelpCircle, path: '/help' },
-];
+interface SidebarItem {
+  name: string;
+  label?: string;
+  icon: LucideIcon | null;
+  path: string | null;
+  feature?: FeatureKey;
+}
 
-export const MOCK_STUDENTS = [
-  { id: 1, name: 'Alice Mumba', id_num: 'SN-23-001', attendance: 92, placement: 'Maternity Ward', grade: 85, status: 'On Track' },
-  { id: 2, name: 'Brian Phiri', id_num: 'SN-23-014', attendance: 76, placement: 'Pediatrics', grade: 62, status: 'At Risk' },
-  { id: 3, name: 'Catherine Zulu', id_num: 'SN-23-022', attendance: 95, placement: 'Surgical Ward', grade: 88, status: 'Exceeding' },
-  { id: 4, name: 'David Banda', id_num: 'SN-23-009', attendance: 88, placement: 'Outpatient Dept', grade: 74, status: 'On Track' },
-  { id: 5, name: 'Esther Lungu', id_num: 'SN-23-045', attendance: 65, placement: 'Community Clinic', grade: 58, status: 'At Risk' },
-  { id: 6, name: 'Fines Mulenga', id_num: 'SN-23-011', attendance: 90, placement: 'Maternity Ward', grade: 82, status: 'On Track' },
+export const SIDEBAR_ITEMS: SidebarItem[] = [
+  // Teaching Tools Section
+  { name: 'section', label: 'Teaching Tools', icon: null, path: null },
+  { name: 'Document Studio', icon: LayoutDashboard, path: '/' },
+  { name: 'Create New', icon: PenTool, path: '/create', feature: 'lesson_generator' },
+  { name: 'My Documents', icon: FolderOpen, path: '/library' },
+  { name: 'Exports', icon: FileDown, path: '/exports' },
+  { name: 'Templates', icon: FileText, path: '/templates', feature: 'templates' },
+  { name: 'Curriculum AI', icon: BrainCircuit, path: '/curriculum', feature: 'curriculum_ai' },
+  { name: 'Assignments', icon: GraduationCap, path: '/assignment-support', feature: 'assignments' },
+  
+  // Study Tools Section
+  { name: 'section', label: 'Study Tools', icon: null, path: null },
+  { name: 'Drug Calculator', icon: Calculator, path: '/drug-calculator', feature: 'drug_calculator' },
+  { name: 'Clinical Cases', icon: Stethoscope, path: '/clinical-cases', feature: 'clinical_cases' },
+  { name: 'Procedures', icon: CheckSquare, path: '/procedures', feature: 'procedures' },
+  { name: 'Flashcards', icon: Layers, path: '/flashcards', feature: 'flashcards' },
+  { name: 'Medical Terms', icon: Languages, path: '/medical-terms', feature: 'medical_terms' },
+  { name: 'Resources', icon: BookMarked, path: '/resources', feature: 'resources' },
+  
+  // Exam & Career Section
+  { name: 'section', label: 'Exam & Career', icon: null, path: null },
+  { name: 'Clinical Logbook', icon: ClipboardList, path: '/logbook', feature: 'clinical_logbook' },
+  { name: 'NMC Exam Prep', icon: Target, path: '/exam-prep', feature: 'nmc_exam_prep' },
+  { name: 'OSCE Practice', icon: Activity, path: '/osce', feature: 'osce_practice' },
+  { name: 'Career', icon: Briefcase, path: '/career', feature: 'career' },
+  
+  // Settings Section
+  { name: 'section', label: null, icon: null, path: null },
+  { name: 'Settings', icon: Settings, path: '/settings' },
+  { name: 'Help', icon: HelpCircle, path: '/help' },
 ];

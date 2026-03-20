@@ -172,12 +172,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">Choose Your Plan</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-slate-500 hover:text-slate-700"
           >
             ✕
           </button>
@@ -191,7 +191,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   className={`border-2 rounded-lg p-4 cursor-pointer transition ${
                     selectedPlan === "monthly_subscription"
                       ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
+                      : "border-slate-200 hover:border-blue-300"
                   }`}
                   onClick={() => setSelectedPlan("monthly_subscription")}
                 >
@@ -201,9 +201,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <div className="text-3xl font-bold mb-2">
                     {plans.monthly_subscription.currency}{" "}
                     {plans.monthly_subscription.price}
-                    <span className="text-sm text-gray-600">/month</span>
+                    <span className="text-sm text-slate-500">/month</span>
                   </div>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-slate-500 mb-4">
                     {plans.monthly_subscription.description}
                   </p>
                   <ul className="space-y-2">
@@ -222,7 +222,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   className={`border-2 rounded-lg p-4 cursor-pointer transition ${
                     selectedPlan === "pay_as_you_go"
                       ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
+                      : "border-slate-200 hover:border-blue-300"
                   }`}
                   onClick={() => setSelectedPlan("pay_as_you_go")}
                 >
@@ -231,9 +231,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </h3>
                   <div className="text-3xl font-bold mb-2">
                     {plans.pay_as_you_go.currency} {plans.pay_as_you_go.price}
-                    <span className="text-sm text-gray-600">/one-time</span>
+                    <span className="text-sm text-slate-500">/one-time</span>
                   </div>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-slate-500 mb-4">
                     {plans.pay_as_you_go.description}
                   </p>
                   <ul className="space-y-2">
@@ -257,12 +257,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="0977123456 or +260977123456"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 Enter your Zambian mobile money number (MTN, Airtel, or Zamtel)
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-slate-400 mt-1">
                 Supported formats: 0977123456, +260977123456, or 260977123456
               </p>
             </div>
@@ -276,7 +276,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <button
               onClick={initiatePayment}
               disabled={!selectedPlan || !phone || loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
             >
               {loading ? "Processing..." : "Proceed to Payment"}
             </button>
@@ -289,7 +289,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <h3 className="text-xl font-bold mb-2">
                   Check Your Phone
                 </h3>
-                <p className="text-gray-600 mb-4">
+                <p className="text-slate-500 mb-4">
                   A payment prompt has been sent to your mobile phone.
                   <br />
                   Please authorize the payment to complete your purchase.
@@ -297,7 +297,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="animate-pulse text-blue-600">
                   Waiting for payment confirmation...
                 </div>
-                <p className="text-xs text-gray-500 mt-4">
+                <p className="text-xs text-slate-400 mt-4">
                   Reference: {paymentReference}
                 </p>
               </>
@@ -307,7 +307,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <h3 className="text-xl font-bold mb-2 text-green-600">
                   Payment Successful!
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-slate-500">
                   Your payment has been processed successfully.
                 </p>
               </>
@@ -317,7 +317,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <h3 className="text-xl font-bold mb-2 text-red-600">
                   Payment Failed
                 </h3>
-                <p className="text-gray-600 mb-4">
+                <p className="text-slate-500 mb-4">
                   Your payment could not be processed. Please try again.
                 </p>
                 <button
@@ -335,13 +335,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <>
                 <div className="text-6xl mb-4">⏱️</div>
                 <h3 className="text-xl font-bold mb-2">Payment Timeout</h3>
-                <p className="text-gray-600 mb-4">
+                <p className="text-slate-500 mb-4">
                   We couldn't verify your payment. Please check your transaction
                   history.
                 </p>
                 <button
                   onClick={onClose}
-                  className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
+                  className="rounded-lg bg-slate-600 px-6 py-2 text-sm font-medium text-white hover:bg-slate-700"
                 >
                   Close
                 </button>

@@ -5,6 +5,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { checkFeatureAccess, getUserFeatures, FeatureKey } from "../services/feature-access.js";
 
 const cancelSubscriptionSchema = z.object({
   reason: z.string().optional(),
@@ -189,6 +190,47 @@ const subscriptionRoutes: FastifyPluginAsync = async (app) => {
             : "Pay As You Go",
         reference: (t.metadataJson as any)?.reference,
       })),
+    });
+  });
+
+  /**
+   * GET /subscriptions/features
+   * Get all features available to the current user
+   */
+  app.get("/features", async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      throw app.httpErrors.unauthorized("Authentication required");
+    }
+
+    const features = await getUserFeatures(app.prisma, userId);
+
+    return reply.code(200).send({
+      success: true,
+      data: {
+        features,
+      },
+    });
+  });
+
+  /**
+   * GET /subscriptions/features/:feature
+   * Check if user has access to a specific feature
+   */
+  app.get<{
+    Params: { feature: string };
+  }>("/features/:feature", async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      throw app.httpErrors.unauthorized("Authentication required");
+    }
+
+    const feature = request.params.feature as FeatureKey;
+    const result = await checkFeatureAccess(app.prisma, userId, feature);
+
+    return reply.code(200).send({
+      success: true,
+      data: result,
     });
   });
 };

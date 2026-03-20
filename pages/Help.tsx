@@ -7,7 +7,7 @@ const Help: React.FC = () => {
   const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/YOUR_GROUP_INVITE_CODE';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 flex items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center p-4 sm:p-6 md:p-10">
       <SEO
         title="Help & Support"
         description="Get help and support for EduNurse Pro. Join our WhatsApp community of nursing and midwifery educators."
@@ -16,7 +16,7 @@ const Help: React.FC = () => {
       />
       <div className="max-w-2xl w-full">
         {/* Main Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 md:p-12 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 md:p-12 text-center">
           {/* WhatsApp Icon */}
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
             <MessageCircle size={40} className="text-green-600" />

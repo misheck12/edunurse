@@ -43,7 +43,7 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[#f6f7f8]">
-      <div className="flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl md:min-h-[650px] md:flex-row">
+      <div className="flex w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl md:min-h-[650px] md:flex-row">
         <div className="relative hidden md:flex md:w-1/2 bg-slate-900 flex-col justify-between overflow-hidden">
           <div className="absolute inset-0 z-0">
             <img

@@ -157,7 +157,7 @@ export function PwaManager() {
       )}
 
       {needRefresh && (
-        <div className={`${bannerBaseClass} bottom-4 border-emerald-200 bg-emerald-50 text-emerald-900`}>
+        <div className={`${bannerBaseClass} border-emerald-200 bg-emerald-50 text-emerald-900`} style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm">
               <RefreshCw size={16} />
@@ -183,7 +183,7 @@ export function PwaManager() {
       )}
 
       {offlineReady && offlineReadyVisible && (
-        <div className={`${bannerBaseClass} bottom-4 border-slate-200 bg-white text-slate-800`}>
+        <div className={`${bannerBaseClass} border-slate-200 bg-white text-slate-800`} style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm">Offline cache is ready.</span>
             <button

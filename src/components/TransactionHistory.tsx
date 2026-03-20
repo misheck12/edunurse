@@ -148,9 +148,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       case "failed":
         return "text-red-600 bg-red-50";
       case "canceled":
-        return "text-gray-600 bg-gray-50";
+        return "text-slate-600 bg-gray-50";
       default:
-        return "text-gray-600 bg-gray-50";
+        return "text-slate-600 bg-gray-50";
     }
   };
 
@@ -173,10 +173,10 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+          <div className="h-10 bg-slate-200 rounded"></div>
+          <div className="h-10 bg-slate-200 rounded"></div>
+          <div className="h-10 bg-slate-200 rounded"></div>
         </div>
       </div>
     );
@@ -186,7 +186,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
     <div className="bg-white rounded-lg shadow">
       {/* Summary Cards */}
       {summary && (
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-slate-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-blue-50 rounded-lg p-4">
               <p className="text-sm text-blue-600 font-medium">Total Spent</p>
@@ -205,14 +205,14 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       )}
 
       {/* Filters */}
-      <div className="p-6 border-b border-gray-200">
+      <div className="p-6 border-b border-slate-200">
         <div className="flex flex-wrap gap-4">
           <select
             value={filter.status || ""}
             onChange={(e) =>
               setFilter({ ...filter, status: e.target.value || undefined })
             }
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Statuses</option>
             <option value="succeeded">Succeeded</option>
@@ -226,7 +226,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             onChange={(e) =>
               setFilter({ ...filter, type: e.target.value || undefined })
             }
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Types</option>
             <option value="charge">Charges</option>
@@ -235,7 +235,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 
           <button
             onClick={exportTransactions}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
           >
             📥 Export CSV
           </button>
@@ -245,7 +245,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       {/* Transactions List */}
       <div className="overflow-x-auto">
         {transactions.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">
+          <div className="p-12 text-center text-slate-500">
             <p className="text-lg mb-2">No transactions yet</p>
             <p className="text-sm">
               Your payment history will appear here once you make a purchase.
@@ -253,39 +253,39 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Description
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Amount
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-slate-200">
               {transactions.map((transaction) => (
                 <tr
                   key={transaction.id}
                   className="hover:bg-gray-50 transition cursor-pointer"
                   onClick={() => onTransactionClick?.(transaction)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
                     {new Date(transaction.date).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
                     {transaction.description}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                     {transaction.type === "refund" && "-"}
                     {transaction.currency} {transaction.amount.toFixed(2)}
                   </td>
@@ -330,7 +330,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           <h2 className="text-2xl font-bold">Transaction Details</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
+            className="text-slate-500 hover:text-slate-700 text-2xl"
           >
             ×
           </button>
@@ -339,38 +339,38 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-gray-500">Transaction ID</p>
+              <p className="text-sm text-slate-500">Transaction ID</p>
               <p className="font-mono text-sm">{transaction.id}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Date</p>
+              <p className="text-sm text-slate-500">Date</p>
               <p className="font-medium">
                 {new Date(transaction.date).toLocaleString()}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Amount</p>
+              <p className="text-sm text-slate-500">Amount</p>
               <p className="text-xl font-bold">
                 {transaction.currency} {transaction.amount.toFixed(2)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Status</p>
+              <p className="text-sm text-slate-500">Status</p>
               <p className="font-medium capitalize">{transaction.status}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Type</p>
+              <p className="text-sm text-slate-500">Type</p>
               <p className="font-medium capitalize">{transaction.type}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Description</p>
+              <p className="text-sm text-slate-500">Description</p>
               <p className="font-medium">{transaction.description}</p>
             </div>
           </div>
 
           {transaction.metadata && (
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500 mb-2">Additional Information</p>
+              <p className="text-sm text-slate-500 mb-2">Additional Information</p>
               <pre className="text-xs overflow-x-auto">
                 {JSON.stringify(transaction.metadata, null, 2)}
               </pre>
@@ -381,7 +381,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         <div className="mt-6 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
           >
             Close
           </button>

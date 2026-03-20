@@ -3,7 +3,61 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Root element ── */
+  html {
+    /* Prevent pull-to-refresh & overscroll bounce (PWA feel) */
+    overscroll-behavior: none;
+    /* Smooth scrolling */
+    scroll-behavior: smooth;
+    /* Prevent text size inflation on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply antialiased text-slate-900;
+    /* Safe area insets for notched devices (iPhone X+) */
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* Optimise touch targets */
+    -webkit-tap-highlight-color: transparent;
+    /* Prevent text selection on double-tap in app mode */
+    -webkit-touch-callout: none;
   }
+
+  /* Ensure inputs zoom correctly on iOS (16px+ prevents auto-zoom) */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  /* Hide scrollbars in standalone PWA mode while keeping scroll */
+  @media (display-mode: standalone) {
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    * {
+      scrollbar-width: none;
+    }
+  }
+
+  /* Safe area bottom padding for fixed bottom bars */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* AI chat output — professional serif typography */
+.chat-prose h2,
+.chat-prose h3 {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+}
+.chat-prose ul,
+.chat-prose ol {
+  padding-left: 1.25rem;
+}
+.chat-prose strong {
+  font-weight: 700;
 }

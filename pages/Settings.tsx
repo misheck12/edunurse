@@ -9,6 +9,11 @@ import { useAuth } from "../src/context/AuthContext";
 import { BillingSection } from "../src/components/BillingSection";
 import { PaymentModal } from "../src/components/PaymentModal";
 import SEO from "../src/components/SEO";
+import {
+  identityDocumentErrorMessage,
+  isValidIdentityDocument,
+  normalizeIdentityDocument,
+} from "../src/utils/identityDocument";
 
 type ProgrammeOption = "Nursing" | "Midwifery";
 
@@ -27,6 +32,7 @@ const Settings: React.FC = () => {
 
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [nrc, setNrc] = useState("");
   const [school, setSchool] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
   const [information, setInformation] = useState("");
@@ -43,6 +49,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     setFullName(user?.fullName ?? "");
     setPhoneNumber(user?.phoneNumber ?? "");
+    setNrc(user?.nrc ?? "");
     setSchool(user?.school ?? "");
     setStudentNumber(user?.studentNumber ?? "");
     setInformation(user?.information ?? "");
@@ -99,11 +106,12 @@ const Settings: React.FC = () => {
     return (
       fullName.trim().length >= 2 &&
       phoneNumber.trim().length >= 7 &&
+      isValidIdentityDocument(nrc) &&
       school.trim().length >= 2 &&
       studentNumber.trim().length >= 2 &&
       information.trim().length >= 2
     );
-  }, [fullName, information, phoneNumber, school, studentNumber]);
+  }, [fullName, information, nrc, phoneNumber, school, studentNumber]);
 
   const handleSaveProfile = async () => {
     setProfileError(null);
@@ -111,7 +119,7 @@ const Settings: React.FC = () => {
 
     if (!canSaveProfile) {
       setProfileError(
-        "Complete all required fields: full name, phone number, school, student number, and information.",
+        `Complete all required fields: full name, phone number, NRC/passport number, school, student number, and information. ${identityDocumentErrorMessage}`,
       );
       return;
     }
@@ -121,6 +129,7 @@ const Settings: React.FC = () => {
       await updateCurrentUser({
         fullName: fullName.trim(),
         phoneNumber: phoneNumber.trim(),
+        nrc: normalizeIdentityDocument(nrc),
         school: school.trim(),
         studentNumber: studentNumber.trim(),
         information: information.trim(),
@@ -172,7 +181,7 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6 md:p-10">
       <SEO title="Settings" description="Manage your EduNurse Pro account settings and preferences." noIndex />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
@@ -210,7 +219,7 @@ const Settings: React.FC = () => {
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 disabled={profileSaving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
 
@@ -221,7 +230,20 @@ const Settings: React.FC = () => {
                 value={phoneNumber}
                 onChange={(event) => setPhoneNumber(event.target.value)}
                 disabled={profileSaving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-700">NRC / Passport Number</span>
+              <input
+                type="text"
+                value={nrc}
+                onChange={(event) => setNrc(event.target.value)}
+                disabled={profileSaving}
+                placeholder="123456/12/1 or AB1234567"
+                title={identityDocumentErrorMessage}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
 
@@ -232,7 +254,7 @@ const Settings: React.FC = () => {
                 value={studentNumber}
                 onChange={(event) => setStudentNumber(event.target.value)}
                 disabled={profileSaving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
 
@@ -243,7 +265,7 @@ const Settings: React.FC = () => {
                 value={school}
                 onChange={(event) => setSchool(event.target.value)}
                 disabled={profileSaving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </label>
 
@@ -254,7 +276,7 @@ const Settings: React.FC = () => {
                 onChange={(event) => setInformation(event.target.value)}
                 rows={3}
                 disabled={profileSaving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 placeholder="Role, department, specialization, or teaching context."
               />
             </label>
@@ -277,7 +299,7 @@ const Settings: React.FC = () => {
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={profileSaving}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
               <Save size={16} />
               {profileSaving ? "Saving..." : "Save Account"}
@@ -301,7 +323,7 @@ const Settings: React.FC = () => {
                 setDefaultProgramme(event.target.value as ProgrammeOption)
               }
               disabled={preferencesLoading || preferencesSaving}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="Nursing">Nursing</option>
               <option value="Midwifery">Midwifery</option>
@@ -314,7 +336,7 @@ const Settings: React.FC = () => {
               value={lessonPlanFormat}
               onChange={(event) => setLessonPlanFormat(event.target.value)}
               disabled={preferencesLoading || preferencesSaving}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option>Standard (NMC Aligned)</option>
               <option>Gagne&apos;s 9 Events</option>
@@ -331,7 +353,7 @@ const Settings: React.FC = () => {
               value={defaultDuration}
               onChange={(event) => setDefaultDuration(Number(event.target.value) || 0)}
               disabled={preferencesLoading || preferencesSaving}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
 
@@ -342,7 +364,7 @@ const Settings: React.FC = () => {
               value={institutionName}
               onChange={(event) => setInstitutionName(event.target.value)}
               disabled={preferencesLoading || preferencesSaving}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
 

@@ -12,8 +12,15 @@ async function main() {
       name: "Free",
       monthlyPriceCents: 0,
       limitsJson: {
-        monthlyGenerations: 50,
-        monthlyExports: 1,
+        monthlyGenerations: 2,
+        monthlyExports: 6,
+        features: [
+          "lesson_generator",
+          "drug_calculator",
+          "flashcards",
+          "resources",
+          "export_pdf"
+        ]
       },
     },
     create: {
@@ -21,8 +28,15 @@ async function main() {
       name: "Free",
       monthlyPriceCents: 0,
       limitsJson: {
-        monthlyGenerations: 50,
-        monthlyExports: 1,
+        monthlyGenerations: 2,
+        monthlyExports: 6,
+        features: [
+          "lesson_generator",
+          "drug_calculator",
+          "flashcards",
+          "resources",
+          "export_pdf"
+        ]
       },
     },
   });
@@ -31,10 +45,29 @@ async function main() {
     where: { code: "pro" },
     update: {
       name: "Pro",
-      monthlyPriceCents: 2500,
+      monthlyPriceCents: 9900,
       limitsJson: {
-        monthlyGenerations: 500,
-        monthlyExports: 250,
+        monthlyGenerations: 100,
+        monthlyExports: 300,
+        features: [
+          "lesson_generator",
+          "drug_calculator",
+          "flashcards",
+          "resources",
+          "export_pdf",
+          "curriculum_ai",
+          "assignments",
+          "templates",
+          "clinical_cases",
+          "procedures",
+          "medical_terms",
+          "clinical_logbook",
+          "nmc_exam_prep",
+          "osce_practice",
+          "career",
+          "export_docx",
+          "export_pptx"
+        ]
       },
     },
     create: {
@@ -42,8 +75,27 @@ async function main() {
       name: "Pro",
       monthlyPriceCents: 2500,
       limitsJson: {
-        monthlyGenerations: 500,
-        monthlyExports: 250,
+        monthlyGenerations: 100,
+        monthlyExports: 300,
+        features: [
+          "lesson_generator",
+          "drug_calculator",
+          "flashcards",
+          "resources",
+          "export_pdf",
+          "curriculum_ai",
+          "assignments",
+          "templates",
+          "clinical_cases",
+          "procedures",
+          "medical_terms",
+          "clinical_logbook",
+          "nmc_exam_prep",
+          "osce_practice",
+          "career",
+          "export_docx",
+          "export_pptx"
+        ]
       },
     },
   });

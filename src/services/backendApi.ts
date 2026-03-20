@@ -985,9 +985,11 @@ export interface CurrentUserResponse {
   email: string;
   fullName?: string | null;
   phoneNumber?: string | null;
+  nrc?: string | null;
   school?: string | null;
   studentNumber?: string | null;
   information?: string | null;
+  profileCompleted?: boolean;
   role: "educator" | "admin";
   isActive: boolean;
   createdAt: string;
@@ -1001,6 +1003,7 @@ export function getCurrentUser() {
 export function updateCurrentUser(input: {
   fullName?: string;
   phoneNumber?: string;
+  nrc?: string;
   school?: string;
   studentNumber?: string;
   information?: string;
@@ -1009,6 +1012,123 @@ export function updateCurrentUser(input: {
     method: "PATCH",
     body: JSON.stringify(input),
   });
+}
+
+export type AssignmentSupportMode = "understand" | "practice" | "draft";
+
+export type CitationStyle = "apa7" | "harvard" | "vancouver" | "mla" | "chicago";
+
+export interface AssignmentSupportMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssignmentSupportResponse {
+  stage: AssignmentSupportMode;
+  coachingMessage: string;
+  learningFocus: string[];
+  nextSteps: string[];
+  checkQuestions: string[];
+  outline: string[];
+  draftResponse: string;
+  readyForDraft: boolean;
+  suggestedMode: AssignmentSupportMode;
+  provider: string;
+  model: string;
+  // Enhanced pedagogy fields
+  conceptsExplained: string[];
+  commonMistakes: string[];
+  reflectionPrompts: string[];
+  suggestedResources: string[];
+  understandingIndicators: string[];
+  paraphrasingTips: string[];
+  estimatedReadiness: number;
+}
+
+export interface AssignmentSupportReference {
+  type: "book" | "journal" | "website" | "other";
+  title: string;
+  authors: string;
+  year: string;
+  source: string;
+  url?: string;
+  notes?: string;
+}
+
+export interface AssignmentSupportInput {
+  mode: AssignmentSupportMode;
+  assignmentTitle?: string;
+  assignmentInstructions: string;
+  course?: string;
+  programme?: string;
+  studentGoal?: string;
+  currentAttempt?: string;
+  messages?: AssignmentSupportMessage[];
+  // Enhanced pedagogy fields
+  wordCount?: number;
+  citationStyle?: CitationStyle;
+  markingCriteria?: string;
+  lecturerFeedback?: string;
+  dueDate?: string;
+  understandingScore?: number;
+  // Student-provided references
+  references?: AssignmentSupportReference[];
+}
+
+export function getAssignmentSupport(input: AssignmentSupportInput) {
+  return request<AssignmentSupportResponse>("/assignment-support/chat", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface DocumentExtractionResponse {
+  success: boolean;
+  text: string;
+  characterCount: number;
+}
+
+export async function extractDocumentText(file: File): Promise<DocumentExtractionResponse> {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = new Uint8Array(arrayBuffer);
+  
+  const response = await fetch(`${API_BASE_URL}/assignment-support/extract-document`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type,
+      ...buildAuthHeaders(),
+    },
+    body: buffer,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || "Failed to extract document text");
+  }
+
+  return response.json();
+}
+
+export async function exportAssignmentDraft(input: {
+  title: string;
+  content: string;
+  citationStyle?: CitationStyle;
+}): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/assignment-support/export-draft`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAuthHeaders(),
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || "Failed to export draft");
+  }
+
+  return response.blob();
 }
 
 export interface UserPreferencesResponse {
@@ -1640,6 +1760,7 @@ export function getOpsOverview(input?: { days?: number }) {
 export type ServiceControlKey =
   | "generation"
   | "content_expansion"
+  | "assignment_support"
   | "exports"
   | "curriculum_query"
   | "curriculum_planner"

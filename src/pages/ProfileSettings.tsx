@@ -247,8 +247,8 @@ export const ProfileSettings: React.FC = () => {
     <div className="p-6">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Profile Information</h2>
-          <p className="text-sm text-gray-500">Update your personal and professional details.</p>
+          <h2 className="text-xl font-semibold text-slate-900">Profile Information</h2>
+          <p className="text-sm text-slate-500">Update your personal and professional details.</p>
         </div>
         <button
           onClick={handleSubmit}
@@ -273,7 +273,7 @@ export const ProfileSettings: React.FC = () => {
 
       <div className="space-y-8">
         {/* Avatar Section */}
-        <div className="flex items-center space-x-6 p-6 bg-gray-50 rounded-xl border border-gray-200">
+        <div className="flex items-center space-x-6 p-6 bg-gray-50 rounded-xl border border-slate-200">
           <div className="relative">
             {formData.avatar ? (
               <img
@@ -286,13 +286,13 @@ export const ProfileSettings: React.FC = () => {
                 <User className="h-10 w-10 text-blue-500" />
               </div>
             )}
-            <button className="absolute bottom-0 right-0 p-2 bg-white rounded-full shadow-md border border-gray-200 hover:bg-gray-50 text-gray-600">
+            <button className="absolute bottom-0 right-0 p-2 bg-white rounded-full shadow-md border border-slate-200 hover:bg-gray-50 text-slate-600">
               <Camera className="h-4 w-4" />
             </button>
           </div>
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Profile Photo</h3>
-            <p className="text-sm text-gray-500 mb-2">
+            <h3 className="text-lg font-medium text-slate-900">Profile Photo</h3>
+            <p className="text-sm text-slate-500 mb-2">
               This will be displayed on your profile and shared with other users.
             </p>
             <div className="flex items-center space-x-2">
@@ -302,7 +302,7 @@ export const ProfileSettings: React.FC = () => {
                 value={formData.avatar}
                 onChange={handleChange}
                 placeholder="https://example.com/avatar.jpg"
-                className="text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 w-64 p-2 border"
+                className="text-sm border-slate-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 w-64 p-2 border"
               />
             </div>
           </div>
@@ -311,68 +311,68 @@ export const ProfileSettings: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Basic Information */}
           <section className="space-y-6">
-            <h3 className="text-lg font-medium text-gray-900 flex items-center">
-              <User className="h-5 w-5 mr-2 text-gray-400" />
+            <h3 className="text-lg font-medium text-slate-900 flex items-center">
+              <User className="h-5 w-5 mr-2 text-slate-400" />
               Basic Information
             </h3>
 
             <div className="grid grid-cols-1 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                <label className="block text-sm font-medium text-slate-700">Full Name</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-4 w-4 text-gray-400" />
+                    <User className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="text"
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                <label className="block text-sm font-medium text-slate-700">Email Address</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-4 w-4 text-gray-400" />
+                    <Mail className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                <label className="block text-sm font-medium text-slate-700">Phone Number</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Phone className="h-4 w-4 text-gray-400" />
+                    <Phone className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="tel"
                     name="phoneNumber"
                     value={formData.phoneNumber}
                     onChange={handleChange}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Bio</label>
+                <label className="block text-sm font-medium text-slate-700">Bio</label>
                 <textarea
                   name="bio"
                   rows={4}
                   value={formData.bio}
                   onChange={handleChange}
-                  className="shadow-sm focus:ring-blue-500 focus:border-blue-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
+                  className="shadow-sm focus:ring-blue-500 focus:border-blue-500 mt-1 block w-full sm:text-sm border border-slate-300 rounded-md p-2"
                   placeholder="Tell us a bit about yourself..."
                 />
               </div>
@@ -381,40 +381,40 @@ export const ProfileSettings: React.FC = () => {
 
           {/* Location & Links */}
           <section className="space-y-6">
-            <h3 className="text-lg font-medium text-gray-900 flex items-center">
-              <MapPin className="h-5 w-5 mr-2 text-gray-400" />
+            <h3 className="text-lg font-medium text-slate-900 flex items-center">
+              <MapPin className="h-5 w-5 mr-2 text-slate-400" />
               Location & Social
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Country</label>
+                <label className="block text-sm font-medium text-slate-700">Country</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Globe className="h-4 w-4 text-gray-400" />
+                    <Globe className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="text"
                     name="country"
                     value={formData.country}
                     onChange={handleChange}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">City</label>
+                <label className="block text-sm font-medium text-slate-700">City</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <MapPin className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="text"
                     name="city"
                     value={formData.city}
                     onChange={handleChange}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
@@ -422,10 +422,10 @@ export const ProfileSettings: React.FC = () => {
 
             <div className="grid grid-cols-1 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Website</label>
+                <label className="block text-sm font-medium text-slate-700">Website</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <LinkIcon className="h-4 w-4 text-gray-400" />
+                    <LinkIcon className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="url"
@@ -433,16 +433,16 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.website}
                     onChange={handleChange}
                     placeholder="https://"
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">LinkedIn</label>
+                <label className="block text-sm font-medium text-slate-700">LinkedIn</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Linkedin className="h-4 w-4 text-gray-400" />
+                    <Linkedin className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="text"
@@ -450,16 +450,16 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.linkedin}
                     onChange={handleChange}
                     placeholder="LinkedIn Profile URL"
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Twitter</label>
+                <label className="block text-sm font-medium text-slate-700">Twitter</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Twitter className="h-4 w-4 text-gray-400" />
+                    <Twitter className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="text"
@@ -467,16 +467,16 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.twitter}
                     onChange={handleChange}
                     placeholder="@username"
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">GitHub</label>
+                <label className="block text-sm font-medium text-slate-700">GitHub</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Github className="h-4 w-4 text-gray-400" />
+                    <Github className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
                     type="text"
@@ -484,7 +484,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.github}
                     onChange={handleChange}
                     placeholder="GitHub Profile URL"
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
@@ -492,68 +492,68 @@ export const ProfileSettings: React.FC = () => {
           </section>
         </div>
 
-        <div className="border-t border-gray-200 pt-8">
+        <div className="border-t border-slate-200 pt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Professional Info */}
             <section className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900 flex items-center">
-                <Briefcase className="h-5 w-5 mr-2 text-gray-400" />
+              <h3 className="text-lg font-medium text-slate-900 flex items-center">
+                <Briefcase className="h-5 w-5 mr-2 text-slate-400" />
                 Professional Info
               </h3>
 
               <div className="grid grid-cols-1 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">School / Institution</label>
+                  <label className="block text-sm font-medium text-slate-700">School / Institution</label>
                   <div className="mt-1 relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Building2 className="h-4 w-4 text-gray-400" />
+                      <Building2 className="h-4 w-4 text-slate-400" />
                     </div>
                     <input
                       type="text"
                       name="school"
                       value={formData.school}
                       onChange={handleChange}
-                      className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-2 border"
+                      className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-md p-2 border"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Department</label>
+                  <label className="block text-sm font-medium text-slate-700">Department</label>
                   <input
                     type="text"
                     name="department"
                     value={formData.department}
                     onChange={handleChange}
-                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Position / Role</label>
+                  <label className="block text-sm font-medium text-slate-700">Position / Role</label>
                   <input
                     type="text"
                     name="position"
                     value={formData.position}
                     onChange={handleChange}
-                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Role</label>
+                  <label className="block text-sm font-medium text-slate-700">Role</label>
                   <input
                     type="text"
                     name="role"
                     value={formData.position}
                     disabled
                     placeholder="User Role (e.g. Creator, Student)"
-                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border bg-gray-100"
+                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-slate-300 rounded-md p-2 border bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Years of Experience</label>
+                  <label className="block text-sm font-medium text-slate-700">Years of Experience</label>
                   <input
                     type="number"
                     name="yearsOfExperience"
@@ -561,7 +561,7 @@ export const ProfileSettings: React.FC = () => {
                     max="50"
                     value={formData.yearsOfExperience}
                     onChange={handleChange}
-                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-slate-300 rounded-md p-2 border"
                   />
                 </div>
               </div>
@@ -569,14 +569,14 @@ export const ProfileSettings: React.FC = () => {
 
             {/* Tags & Lists */}
             <section className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900 flex items-center">
-                <Award className="h-5 w-5 mr-2 text-gray-400" />
+              <h3 className="text-lg font-medium text-slate-900 flex items-center">
+                <Award className="h-5 w-5 mr-2 text-slate-400" />
                 Skills & Qualifications
               </h3>
 
               {/* Specializations */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Specializations</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Specializations</label>
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -584,12 +584,12 @@ export const ProfileSettings: React.FC = () => {
                     onChange={(e) => setNewSpecialization(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem("specializations", newSpecialization, setNewSpecialization))}
                     placeholder="Add specialization..."
-                    className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                    className="flex-1 text-sm border-slate-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
                   />
                   <button
                     type="button"
                     onClick={() => handleAddItem("specializations", newSpecialization, setNewSpecialization)}
-                    className="px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+                    className="px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200"
                   >
                     Add
                   </button>
@@ -613,7 +613,7 @@ export const ProfileSettings: React.FC = () => {
 
               {/* Qualifications */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Qualifications</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Qualifications</label>
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -621,12 +621,12 @@ export const ProfileSettings: React.FC = () => {
                     onChange={(e) => setNewQualification(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem("qualifications", newQualification, setNewQualification))}
                     placeholder="Add qualification..."
-                    className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                    className="flex-1 text-sm border-slate-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
                   />
                   <button
                     type="button"
                     onClick={() => handleAddItem("qualifications", newQualification, setNewQualification)}
-                    className="px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+                    className="px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200"
                   >
                     Add
                   </button>
@@ -650,7 +650,7 @@ export const ProfileSettings: React.FC = () => {
 
               {/* Teaching Areas */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Teaching Areas</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Teaching Areas</label>
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -658,12 +658,12 @@ export const ProfileSettings: React.FC = () => {
                     onChange={(e) => setNewTeachingArea(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem("teachingAreas", newTeachingArea, setNewTeachingArea))}
                     placeholder="Add teaching area..."
-                    className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                    className="flex-1 text-sm border-slate-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
                   />
                   <button
                     type="button"
                     onClick={() => handleAddItem("teachingAreas", newTeachingArea, setNewTeachingArea)}
-                    className="px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+                    className="px-3 py-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200"
                   >
                     Add
                   </button>

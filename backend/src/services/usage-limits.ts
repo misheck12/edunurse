@@ -4,6 +4,11 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import {
+  getActiveSubscription,
+  getCurrentMonthStart,
+  readPlanLimit,
+} from "./subscription-helper.js";
 
 export interface UsageLimits {
   canGenerate: boolean;
@@ -28,47 +33,6 @@ export interface ExportLimitContext {
 
 const WELCOME_BONUS_GENERATIONS = 2;
 const WELCOME_BONUS_EXPORTS = 1;
-
-function toFiniteNonNegativeNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-    return Math.floor(value);
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return Math.floor(parsed);
-    }
-  }
-  return null;
-}
-
-function readPlanLimit(
-  limitsJson: unknown,
-  keys: string[],
-): number | "unlimited" {
-  if (!limitsJson || typeof limitsJson !== "object" || Array.isArray(limitsJson)) {
-    return "unlimited";
-  }
-
-  const record = limitsJson as Record<string, unknown>;
-  for (const key of keys) {
-    const value = record[key];
-    if (value === -1 || value === "-1") {
-      return "unlimited";
-    }
-    const parsed = toFiniteNonNegativeNumber(value);
-    if (parsed !== null) {
-      return parsed;
-    }
-  }
-
-  return "unlimited";
-}
-
-function getCurrentMonthStart() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
-}
 
 async function resolveThreeFormatBundleAllowance(
   prisma: PrismaClient,

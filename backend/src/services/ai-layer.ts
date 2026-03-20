@@ -3191,3 +3191,516 @@ export async function expandLessonContentWithProviderFallback(
     model: "fallback-local-template",
   };
 }
+
+const AssignmentSupportStageSchema = z.enum(["understand", "practice", "draft"]);
+
+export type AssignmentSupportMode = z.infer<typeof AssignmentSupportStageSchema>;
+
+export interface AssignmentSupportMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssignmentSupportInput {
+  mode: AssignmentSupportMode;
+  assignmentTitle?: string;
+  assignmentInstructions: string;
+  course?: string;
+  programme?: string;
+  studentGoal?: string;
+  currentAttempt?: string;
+  messages?: AssignmentSupportMessage[];
+  // Enhanced pedagogy fields
+  wordCount?: number;
+  citationStyle?: "apa7" | "harvard" | "vancouver" | "mla" | "chicago";
+  markingCriteria?: string;
+  lecturerFeedback?: string;
+  dueDate?: string;
+  understandingScore?: number; // 0-100 based on check question answers
+  // References provided by student
+  references?: Array<{
+    type: "book" | "journal" | "website" | "other";
+    title: string;
+    authors: string;
+    year: string;
+    source: string;
+    url?: string;
+    notes?: string;
+  }>;
+}
+
+const AssignmentSupportPayloadSchema = z.object({
+  stage: AssignmentSupportStageSchema,
+  coachingMessage: z.string(),
+  learningFocus: z.array(z.string()).default([]),
+  nextSteps: z.array(z.string()).default([]),
+  checkQuestions: z.array(z.string()).default([]),
+  outline: z.array(z.string()).default([]),
+  draftResponse: z.string().default(""),
+  readyForDraft: z.boolean().default(false),
+  suggestedMode: AssignmentSupportStageSchema.default("understand"),
+  // Enhanced pedagogy fields
+  conceptsExplained: z.array(z.string()).default([]),
+  commonMistakes: z.array(z.string()).default([]),
+  reflectionPrompts: z.array(z.string()).default([]),
+  suggestedResources: z.array(z.string()).default([]),
+  understandingIndicators: z.array(z.string()).default([]),
+  paraphrasingTips: z.array(z.string()).default([]),
+  estimatedReadiness: z.number().min(0).max(100).default(0),
+});
+
+export interface AssignmentSupportResult
+  extends z.infer<typeof AssignmentSupportPayloadSchema> {
+  provider: ProviderName;
+  model: string;
+}
+
+function clipAssignmentSupportText(value: string | undefined, limit: number) {
+  if (!value) return "";
+  return sanitizeGeneratedText(value).slice(0, limit);
+}
+
+function toAssignmentSupportList(value: unknown, limit: number) {
+  if (Array.isArray(value)) {
+    return uniqueNonEmpty(
+      value
+        .map((item) => sanitizeLine(item))
+        .filter(Boolean),
+    ).slice(0, limit);
+  }
+
+  const text = sanitizeGeneratedText(toLooseText(value));
+  if (!text) return [] as string[];
+
+  return uniqueNonEmpty(
+    text
+      .split(/\n|(?:\s*[-*]\s+)/)
+      .map((item) => sanitizeLine(item))
+      .filter(Boolean),
+  ).slice(0, limit);
+}
+
+function normalizeAssignmentSupportPayload(
+  value: unknown,
+  mode: AssignmentSupportMode,
+) {
+  const parsed = AssignmentSupportPayloadSchema.safeParse(value);
+  const raw = parsed.success
+    ? parsed.data
+    : ((value ?? {}) as Partial<z.infer<typeof AssignmentSupportPayloadSchema>>);
+
+  const stageResult = AssignmentSupportStageSchema.safeParse(raw.stage);
+  const suggestedModeResult = AssignmentSupportStageSchema.safeParse(raw.suggestedMode);
+  const coachingMessage = clipAssignmentSupportText(
+    sanitizeGeneratedText(toLooseText(raw.coachingMessage)),
+    5000,
+  );
+
+  return {
+    stage: stageResult.success ? stageResult.data : mode,
+    coachingMessage:
+      coachingMessage ||
+      "Let's work through the assignment step by step and make sure the ideas are clear before we polish the final submission.",
+    learningFocus: toAssignmentSupportList(raw.learningFocus, 5),
+    nextSteps: toAssignmentSupportList(raw.nextSteps, 5),
+    checkQuestions: toAssignmentSupportList(raw.checkQuestions, 5),
+    outline: toAssignmentSupportList(raw.outline, 8),
+    draftResponse:
+      mode === "draft"
+        ? clipAssignmentSupportText(
+            sanitizeGeneratedText(toLooseText(raw.draftResponse)),
+            8000,
+          )
+        : "",
+    readyForDraft:
+      typeof raw.readyForDraft === "boolean"
+        ? raw.readyForDraft
+        : mode === "draft",
+    suggestedMode: suggestedModeResult.success
+      ? suggestedModeResult.data
+      : mode === "understand"
+        ? "practice"
+        : "draft",
+    // Enhanced pedagogy fields
+    conceptsExplained: toAssignmentSupportList(raw.conceptsExplained, 6),
+    commonMistakes: toAssignmentSupportList(raw.commonMistakes, 5),
+    reflectionPrompts: toAssignmentSupportList(raw.reflectionPrompts, 4),
+    suggestedResources: toAssignmentSupportList(raw.suggestedResources, 5),
+    understandingIndicators: toAssignmentSupportList(raw.understandingIndicators, 5),
+    paraphrasingTips: toAssignmentSupportList(raw.paraphrasingTips, 4),
+    estimatedReadiness: typeof raw.estimatedReadiness === "number" 
+      ? Math.max(0, Math.min(100, raw.estimatedReadiness)) 
+      : mode === "draft" ? 70 : mode === "practice" ? 40 : 10,
+  };
+}
+
+function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
+  const history = (input.messages ?? [])
+    .slice(-12)
+    .map((message, index) => {
+      const roleLabel = message.role === "assistant" ? "Tutor" : "Student";
+      return `${index + 1}. ${roleLabel}: ${clipAssignmentSupportText(message.content, 1200)}`;
+    })
+    .join("\n");
+
+  // Citation style guidance
+  const citationGuidance = input.citationStyle 
+    ? `Use ${input.citationStyle.toUpperCase()} citation style when mentioning how to reference sources.`
+    : "";
+
+  // Word count guidance
+  const wordCountGuidance = input.wordCount 
+    ? `Target word count: ${input.wordCount} words. Structure advice accordingly.`
+    : "";
+
+  // Understanding score guidance - unlock drafts at 50%
+  const readinessGuidance = input.understandingScore !== undefined
+    ? input.understandingScore < 50
+      ? "IMPORTANT: Student's understanding score is below 50%. Focus on teaching concepts, NOT writing the assignment. Draft mode is locked until understanding reaches 50%."
+      : input.understandingScore >= 50
+        ? `Student understanding score: ${input.understandingScore}%. They have demonstrated reasonable comprehension and can now receive professional draft assistance with proper citations.`
+        : `Student understanding score: ${input.understandingScore}%.`
+    : "";
+
+  // Format student-provided references
+  const formattedReferences = (input.references ?? []).map((ref, i) => {
+    const typeEmoji = ref.type === "book" ? "📚" : ref.type === "journal" ? "📄" : ref.type === "website" ? "🌐" : "📁";
+    return `${i + 1}. ${typeEmoji} ${ref.authors} (${ref.year}). ${ref.title}. ${ref.source}${ref.url ? ` URL: ${ref.url}` : ""}${ref.notes ? `\n   Key points: ${ref.notes}` : ""}`;
+  }).join("\n");
+
+  const referencesGuidance = formattedReferences
+    ? `\n\nSTUDENT-PROVIDED REFERENCES (${input.references?.length ?? 0} sources):\n${formattedReferences}\n\nIMPORTANT: When generating draft content, incorporate and properly cite these specific sources the student has provided. Use in-text citations in ${(input.citationStyle || "apa7").toUpperCase()} format.`
+    : "\n\nNOTE: Student has not provided any references yet. If in draft mode, suggest relevant topic areas for research rather than inventing citations.";
+
+  const systemPrompt = [
+    "You are EduNurse's assignment tutor for nursing and health-science students.",
+    "",
+    "YOUR CORE PHILOSOPHY: TEACH UNDERSTANDING FIRST, WRITING SECOND",
+    "- Your primary job is to help students UNDERSTAND their assignment deeply.",
+    "- Students must demonstrate comprehension before you help them write.",
+    "- Once students reach 50% understanding, they can receive professional draft assistance.",
+    "- Use Socratic questioning to guide discovery in early stages.",
+    "",
+    "ACADEMIC INTEGRITY PRINCIPLES:",
+    "- Help students develop their own voice and original thinking.",
+    "- Teach paraphrasing skills rather than providing copy-paste content.",
+    "- When generating drafts, properly cite student-provided references.",
+    "- Encourage critical thinking over memorization.",
+    "",
+    "MODE BEHAVIORS:",
+    "- UNDERSTAND mode: Break down the assignment, decode instruction words, explain key concepts. Ask questions to check comprehension. NEVER provide a draft.",
+    "- PRACTICE mode: Coach through guided reasoning, mini-exercises, and comprehension checks. Test understanding before progression. NEVER provide a full draft.",
+    "- DRAFT mode (UNLOCKED AT 50% UNDERSTANDING): Generate a professional, well-structured assignment incorporating the student's provided references with proper citations. Create publication-quality content that demonstrates mastery of the topic.",
+    "",
+    "PROFESSIONAL DRAFT MODE (50%+ Understanding):",
+    "- Generate a complete, professionally written assignment.",
+    "- Use formal academic language appropriate for the programme level.",
+    "- Incorporate ALL student-provided references with proper in-text citations.",
+    "- Include a formatted reference list at the end.",
+    "- Structure with clear introduction, body paragraphs, and conclusion.",
+    "- Address all marking criteria if provided.",
+    "- Match the required word count if specified.",
+    citationGuidance,
+    wordCountGuidance,
+    readinessGuidance,
+    referencesGuidance,
+    "",
+    "Return strict JSON only with this shape:",
+    '{',
+    '  "stage": "understand" | "practice" | "draft",',
+    '  "coachingMessage": string (warm, educational explanation)',
+    '  "learningFocus": string[] (concepts student needs to master)',
+    '  "nextSteps": string[] (concrete actions student should take)',
+    '  "checkQuestions": string[] (questions to verify understanding)',
+    '  "outline": string[] (section-by-section structure)',
+    '  "draftResponse": string (SUBSTANTIAL professional draft when in draft mode with 50%+ understanding)',
+    '  "readyForDraft": boolean (true if student has 50%+ understanding)',
+    '  "suggestedMode": "understand" | "practice" | "draft"',
+    '  "conceptsExplained": string[] (key ideas taught)',
+    '  "commonMistakes": string[] (pitfalls to avoid)',
+    '  "reflectionPrompts": string[] (questions for reflection)',
+    '  "suggestedResources": string[] (topics to research)',
+    '  "understandingIndicators": string[] (signs of understanding)',
+    '  "paraphrasingTips": string[] (how to express ideas originally)',
+    '  "estimatedReadiness": number (0-100, based on demonstrated understanding)',
+    '}',
+  ].filter(Boolean).join("\n");
+
+  const userPrompt = [
+    `Requested mode: ${input.mode}`,
+    `Understanding score: ${input.understandingScore ?? 0}%${input.understandingScore && input.understandingScore >= 50 ? " (DRAFT MODE UNLOCKED - generate professional assignment)" : ""}`,
+    `Assignment title: ${input.assignmentTitle?.trim() || "Not provided"}`,
+    `Programme: ${input.programme?.trim() || "Not provided"}`,
+    `Course / module: ${input.course?.trim() || "Not provided"}`,
+    `Student goal: ${input.studentGoal?.trim() || "Not provided"}`,
+    input.wordCount ? `Target word count: ${input.wordCount}` : "",
+    input.citationStyle ? `Citation style required: ${input.citationStyle.toUpperCase()}` : "",
+    input.dueDate ? `Due date: ${input.dueDate}` : "",
+    "",
+    "Assignment instructions:",
+    clipAssignmentSupportText(input.assignmentInstructions, 9000),
+    "",
+    input.markingCriteria ? `Marking criteria / rubric:\n${clipAssignmentSupportText(input.markingCriteria, 3000)}` : "",
+    "",
+    input.lecturerFeedback ? `Previous lecturer feedback to address:\n${clipAssignmentSupportText(input.lecturerFeedback, 2000)}` : "",
+    "",
+    "Student current attempt:",
+    clipAssignmentSupportText(input.currentAttempt, 6000) || "Not provided yet - student has not written anything",
+    "",
+    "Recent conversation:",
+    history || "No prior conversation yet - this is the first interaction.",
+    "",
+    input.mode === "draft" && (input.understandingScore ?? 0) >= 50 
+      ? [
+          "PROFESSIONAL DRAFT GENERATION MODE (50%+ Understanding Achieved):",
+          "- Generate a COMPLETE, professionally written assignment.",
+          "- Use formal academic language at the appropriate programme level.",
+          "- Include proper in-text citations for all student-provided references.",
+          "- Structure with clear introduction, well-developed body paragraphs, and strong conclusion.",
+          "- Address ALL marking criteria if provided.",
+          "- Include a formatted reference list at the end.",
+          `- Target ${input.wordCount ?? 1500} words.`,
+          "- Make it publication-quality and ready for submission.",
+        ].join("\n")
+      : [
+          "RESPONSE RULES (Understanding Mode):",
+          "- If understanding < 50%, focus on TEACHING concepts, not drafting.",
+          "- coachingMessage should teach and guide, not just answer.",
+          "- learningFocus should identify what the student needs to understand.",
+          "- checkQuestions should test deep comprehension.",
+          "- Set readyForDraft to false until 50% understanding is demonstrated.",
+          "- Help the student add references if they haven't provided any.",
+        ].join("\n"),
+  ].filter(Boolean).join("\n");
+
+  return { systemPrompt, userPrompt };
+}
+
+function buildAssignmentSupportFallback(
+  input: AssignmentSupportInput,
+): AssignmentSupportResult {
+  const title = input.assignmentTitle?.trim() || "your assignment";
+  const focusLabel = input.course?.trim() || input.programme?.trim() || "the assignment topic";
+  const outline = uniqueNonEmpty([
+    "Introduction: restate the question, scope, and main argument.",
+    "Main point 1: explain the first core idea from the brief in simple academic language.",
+    "Main point 2: connect the idea to practice, evidence, or examples.",
+    "Main point 3: evaluate implications, risks, benefits, or recommended actions.",
+    "Conclusion: summarize the answer and return directly to the task wording.",
+  ]);
+
+  if (input.mode === "understand") {
+    return {
+      stage: "understand",
+      coachingMessage: `Let's unpack ${title}. Start by underlining the instruction words, the topic focus, and the exact output your lecturer expects.`,
+      learningFocus: [
+        "What the task is actually asking you to do",
+        "Key concepts you must explain clearly",
+        "How to structure a complete answer",
+      ],
+      nextSteps: [
+        "Rewrite the task in your own words.",
+        "List the main concepts you think each paragraph should cover.",
+        "Send me your own explanation of the question so I can check it.",
+      ],
+      checkQuestions: [
+        `What is the main decision or explanation this ${focusLabel} assignment expects?`,
+        "Which keywords in the brief tell you how deep your answer should go?",
+        "What would make an answer incomplete?",
+      ],
+      outline,
+      draftResponse: "",
+      readyForDraft: false,
+      suggestedMode: "practice",
+      // Enhanced pedagogy fields
+      conceptsExplained: [
+        "How to decode assignment instruction words",
+        "Identifying what your lecturer really wants",
+        "Breaking complex tasks into manageable parts",
+      ],
+      commonMistakes: [
+        "Jumping to write before understanding what's being asked",
+        "Missing key instruction words like 'analyse', 'evaluate', or 'discuss'",
+        "Writing everything you know instead of answering the specific question",
+      ],
+      reflectionPrompts: [
+        "Can you explain this assignment to a friend in simple terms?",
+        "What would happen if you left out one of the key concepts?",
+      ],
+      suggestedResources: [
+        `Core textbook chapters on ${focusLabel}`,
+        "Your lecture notes and slides for this topic",
+        "Tutorial worksheets that cover similar concepts",
+      ],
+      understandingIndicators: [
+        "Can explain the task in their own words",
+        "Identifies all key instruction words correctly",
+        "Knows what output format is expected",
+      ],
+      paraphrasingTips: [
+        "Read a concept, close the book, then explain it aloud",
+        "Use synonyms but keep the technical terms accurate",
+        "Start sentences differently than the original source",
+      ],
+      estimatedReadiness: 15,
+      provider: "azure",
+      model: "fallback-local-template",
+    };
+  }
+
+  if (input.mode === "practice") {
+    return {
+      stage: "practice",
+      coachingMessage:
+        "Before we write the final answer, test your understanding by answering the check questions and sketching one paragraph idea for each main section. This helps make sure you truly grasp the concepts rather than just copying.",
+      learningFocus: [
+        "Reasoning through the assignment step by step",
+        "Using clear topic sentences",
+        "Linking ideas back to the question",
+      ],
+      nextSteps: [
+        "Answer the check questions in your own words.",
+        "Draft bullet points for each section of the outline.",
+        "Share your rough attempt so I can help improve it.",
+      ],
+      checkQuestions: [
+        "What is your strongest main argument or explanation?",
+        "Which example or practical point will you use to support it?",
+        "How will you connect your conclusion back to the question wording?",
+      ],
+      outline,
+      draftResponse: "",
+      readyForDraft: false,
+      suggestedMode: "draft",
+      // Enhanced pedagogy fields
+      conceptsExplained: [
+        "How to build an argument step by step",
+        "Connecting theory to practical examples",
+        "Self-checking your understanding",
+      ],
+      commonMistakes: [
+        "Using vague language instead of specific examples",
+        "Forgetting to link back to the original question",
+        "Copying phrases instead of paraphrasing in your own voice",
+      ],
+      reflectionPrompts: [
+        "Why is this concept important in nursing/healthcare practice?",
+        "How would you explain this to a patient or colleague?",
+      ],
+      suggestedResources: [
+        "Practice case studies in your textbook",
+        "Clinical examples from your placement experience",
+        "Peer-reviewed articles on the topic (search databases, don't invent)",
+      ],
+      understandingIndicators: [
+        "Can answer check questions without looking at notes",
+        "Provides specific examples, not just general statements",
+        "Shows how concepts connect to practice",
+      ],
+      paraphrasingTips: [
+        "Explain concepts as if teaching someone new to the topic",
+        "Use the structure: concept → explanation → example → application",
+        "Avoid copying the assignment wording in your answer",
+      ],
+      estimatedReadiness: 45,
+      provider: "azure",
+      model: "fallback-local-template",
+    };
+  }
+
+  return {
+    stage: "draft",
+    coachingMessage:
+      "Based on your demonstrated understanding, here is a draft structure you can build on. Remember: this is scaffolding for YOUR ideas. Read it critically, then rewrite it in your own voice to reflect your genuine understanding. Your lecturer wants to hear YOUR thinking.",
+    learningFocus: [
+      "Clear structure",
+      "Original academic wording",
+      "Strong link between each paragraph and the assignment prompt",
+    ],
+    nextSteps: [
+      "Check every paragraph against the assignment wording.",
+      "Replace any generic phrases with your own specific examples.",
+      "Add lecturer-required references from your own research.",
+      "Read your draft aloud to check it sounds like you.",
+    ],
+    checkQuestions: [
+      "Does the introduction directly answer the task?",
+      "Does each body paragraph contribute something distinct?",
+      "Does the conclusion finish with a clear final position?",
+    ],
+    outline,
+    draftResponse: [
+      `Introduction`,
+      `${title} requires a clear, focused response that explains the topic, organises the main ideas logically, and links each point back to the question. This draft should be adapted to match the exact wording and expectations of the assignment brief.`,
+      "",
+      `Body`,
+      `The first section should define and explain the central issue in ${focusLabel}. The next section should apply that explanation to practice, evidence, or a relevant example from the assignment context. A further section should evaluate the implications, challenges, or recommended actions so the answer moves beyond description alone.`,
+      "",
+      `Conclusion`,
+      `The conclusion should summarize the key argument, reinforce the most important takeaway, and close with a direct answer to the assignment question.`,
+      "",
+      `[IMPORTANT: This is a structural guide, not your final answer. Replace bracketed sections with YOUR specific analysis, examples, and insights. Your lecturer can tell when ideas aren't authentically yours.]`,
+    ].join("\n"),
+    readyForDraft: true,
+    suggestedMode: "draft",
+    // Enhanced pedagogy fields
+    conceptsExplained: [
+      "Academic writing structure",
+      "How to integrate evidence with your argument",
+      "Writing in an academic but personal voice",
+    ],
+    commonMistakes: [
+      "Submitting AI-generated content without making it your own",
+      "Forgetting to add specific examples from your learning",
+      "Not proofreading for your natural voice and style",
+    ],
+    reflectionPrompts: [
+      "If your lecturer asked you to explain a paragraph, could you?",
+      "Does this draft represent what YOU learned, or just what was given to you?",
+    ],
+    suggestedResources: [
+      "Academic writing guides from your library",
+      "Referencing guides for your required citation style",
+      "Peer review: ask a classmate to read and question your ideas",
+    ],
+    understandingIndicators: [
+      "Can defend every claim in the draft with their own reasoning",
+      "Knows where to add their specific examples",
+      "Understands why each section is structured this way",
+    ],
+    paraphrasingTips: [
+      "After reading this scaffold, close it and write in your own words",
+      "Use your clinical or lecture examples, not generic ones",
+      "Read your final draft aloud - does it sound like you?",
+    ],
+    estimatedReadiness: 75,
+    provider: "azure",
+    model: "fallback-local-template",
+  };
+}
+
+export async function generateAssignmentSupportWithProviderFallback(
+  input: AssignmentSupportInput,
+): Promise<AssignmentSupportResult> {
+  const { systemPrompt, userPrompt } = buildAssignmentSupportPrompt(input);
+  const providers = parseProviderPriority();
+
+  for (const provider of providers) {
+    try {
+      const result = await callProvider(provider, systemPrompt, userPrompt);
+      const jsonText = extractJsonText(result.rawText);
+      const parsed = parseJsonWithRepairs(jsonText);
+      const normalized = normalizeAssignmentSupportPayload(parsed, input.mode);
+
+      return {
+        ...normalized,
+        provider,
+        model: result.model,
+      };
+    } catch {
+      // Try the next configured provider.
+    }
+  }
+
+  return buildAssignmentSupportFallback(input);
+}
