@@ -167,10 +167,12 @@ const assignmentSupportRoutes: FastifyPluginAsync = async (app) => {
 
     try {
       if (contentType.includes("application/pdf")) {
-        // Dynamic import for pdf-parse
-        const pdfParse = (await import("pdf-parse")).default;
-        const pdfData = await pdfParse(body);
-        extractedText = pdfData.text;
+        // pdf-parse v2 is class-based (PDFParse)
+        const { PDFParse } = await import("pdf-parse");
+        const parser = new PDFParse({ data: body });
+        const pdfData = await parser.getText();
+        extractedText = pdfData.pages.map((p: { text: string }) => p.text).join("\n");
+        await parser.destroy();
       } else if (
         contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
         contentType.includes("application/msword")
