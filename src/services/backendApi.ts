@@ -2378,3 +2378,96 @@ export function testEmailConfiguration(toEmail: string) {
     body: JSON.stringify({ toEmail }),
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Admin Notifications / Communications                               */
+/* ------------------------------------------------------------------ */
+
+export type NotificationChannel = "email" | "sms" | "whatsapp";
+
+export interface NotificationResult {
+  id: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface NotificationLogItem {
+  id: string;
+  userId: string | null;
+  channel: NotificationChannel;
+  recipient: string;
+  subject: string | null;
+  body: string;
+  status: "pending" | "sent" | "failed";
+  errorDetail: string | null;
+  sentBy: string | null;
+  createdAt: string;
+  user?: { id: string; email: string; fullName: string | null } | null;
+}
+
+export interface NotificationLogResponse {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: NotificationLogItem[];
+}
+
+export interface NotificationStats {
+  emailSent: number;
+  smsSent: number;
+  whatsappSent: number;
+  totalFailed: number;
+}
+
+export function sendAdminNotification(data: {
+  channel: NotificationChannel;
+  recipient: string;
+  subject?: string;
+  body: string;
+  userId?: string;
+}) {
+  return request<NotificationResult>("/admin/notifications/send", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function broadcastAdminNotification(data: {
+  channel: NotificationChannel;
+  subject?: string;
+  body: string;
+  userIds?: string[];
+  filterRole?: "educator" | "admin";
+}) {
+  return request<{
+    success: boolean;
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: NotificationResult[];
+  }>("/admin/notifications/broadcast", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getNotificationLogs(params?: {
+  page?: number;
+  pageSize?: number;
+  channel?: NotificationChannel;
+  status?: "pending" | "sent" | "failed";
+  userId?: string;
+}) {
+  const qp = new URLSearchParams();
+  if (params?.page) qp.set("page", String(params.page));
+  if (params?.pageSize) qp.set("pageSize", String(params.pageSize));
+  if (params?.channel) qp.set("channel", params.channel);
+  if (params?.status) qp.set("status", params.status);
+  if (params?.userId) qp.set("userId", params.userId);
+  const qs = qp.toString();
+  return request<NotificationLogResponse>(`/admin/notifications/logs${qs ? `?${qs}` : ""}`);
+}
+
+export function getNotificationStats() {
+  return request<NotificationStats>("/admin/notifications/stats");
+}

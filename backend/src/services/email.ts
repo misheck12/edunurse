@@ -193,6 +193,118 @@ async function sendEmail(options: EmailOptions): Promise<void> {
 }
 
 /**
+ * Send a custom/ad-hoc email (used by notifications service & admin messaging).
+ * Wraps raw HTML body in the branded EduNurse email shell.
+ */
+export async function sendCustomEmail(
+  to: string,
+  subject: string,
+  htmlBody: string,
+): Promise<void> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>EduNurse</h1>
+        </div>
+        <div class="content">
+          ${htmlBody}
+        </div>
+        <div class="footer">
+          <p>EduNurse — AI-Powered Nursing Education</p>
+          <p>If you did not expect this message, please contact ${env.SUPPORT_EMAIL}.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Strip HTML tags for plain-text fallback
+  const text = htmlBody.replace(/<[^>]*>/g, "").trim();
+
+  await sendEmail({ to, subject, html, text });
+}
+
+/**
+ * Send a password-reset notification email triggered by an admin.
+ * Contains the temporary password — used when admin resets from ops dashboard.
+ */
+export async function sendAdminPasswordResetNotification(
+  email: string,
+  userName: string,
+  tempPassword: string,
+): Promise<void> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f59e0b; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+        .password-box { background: white; border: 2px dashed #cbd5e1; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; font-family: monospace; font-size: 20px; letter-spacing: 2px; }
+        .warning-box { background: #fef3c7; border: 2px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .cta-button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🔐 Your Password Has Been Reset</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${userName},</p>
+
+          <p>An administrator has reset your password. Here is your new temporary password:</p>
+
+          <div class="password-box">${tempPassword}</div>
+
+          <div class="warning-box">
+            <p style="margin: 0; font-size: 14px;">
+              ⚠️ <strong>Please change this password immediately</strong> after logging in for security.
+            </p>
+          </div>
+
+          <p style="text-align: center;">
+            <a href="${env.FRONTEND_URL}/login" class="cta-button">
+              Log In Now
+            </a>
+          </p>
+
+          <p>If you did not expect this reset, please contact your administrator or email us at ${env.SUPPORT_EMAIL}.</p>
+
+          <p><strong>The EduNurse Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>EduNurse — AI-Powered Nursing Education</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: "🔐 Your Password Has Been Reset — EduNurse",
+    html,
+    text: `Hi ${userName},\n\nYour password has been reset by an administrator.\n\nTemporary password: ${tempPassword}\n\nPlease log in and change it immediately: ${env.FRONTEND_URL}/login\n\nThe EduNurse Team`,
+  });
+}
+
+/**
  * Send welcome email to new user
  */
 export async function sendWelcomeEmail(

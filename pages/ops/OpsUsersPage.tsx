@@ -905,6 +905,7 @@ function ResetPasswordModal({
   onError: (msg: string) => void;
 }) {
   const [pw, setPw] = useState("");
+  const [sendNotif, setSendNotif] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -943,9 +944,18 @@ function ResetPasswordModal({
           value={pw}
           onChange={(e) => setPw(e.target.value)}
           placeholder="Min 8 characters"
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           minLength={8}
         />
+        <label className="mb-4 flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={sendNotif}
+            onChange={(e) => setSendNotif(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Send password notification email to user
+        </label>
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}

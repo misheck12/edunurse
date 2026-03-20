@@ -95,6 +95,64 @@ export const SETTING_DEFINITIONS: SystemSettingDefinition[] = [
     defaultValue: "",
     isSecret: false,
   },
+  // SMS Settings (Africa's Talking)
+  {
+    key: "SMS_ENABLED",
+    category: "sms",
+    description: "Enable/disable SMS notifications",
+    defaultValue: "false",
+    isSecret: false,
+  },
+  {
+    key: "AT_API_KEY",
+    category: "sms",
+    description: "Africa's Talking API key",
+    defaultValue: "",
+    isSecret: true,
+  },
+  {
+    key: "AT_USERNAME",
+    category: "sms",
+    description: "Africa's Talking username (use 'sandbox' for testing)",
+    defaultValue: "sandbox",
+    isSecret: false,
+  },
+  {
+    key: "AT_SENDER_ID",
+    category: "sms",
+    description: "SMS Sender ID (e.g. EduNurse). Leave blank for default.",
+    defaultValue: "",
+    isSecret: false,
+  },
+  // WhatsApp Settings (Meta Cloud API)
+  {
+    key: "WHATSAPP_ENABLED",
+    category: "whatsapp",
+    description: "Enable/disable WhatsApp messaging",
+    defaultValue: "false",
+    isSecret: false,
+  },
+  {
+    key: "WHATSAPP_PHONE_NUMBER_ID",
+    category: "whatsapp",
+    description: "Meta WhatsApp Business phone number ID",
+    defaultValue: "",
+    isSecret: false,
+  },
+  {
+    key: "WHATSAPP_ACCESS_TOKEN",
+    category: "whatsapp",
+    description: "Meta WhatsApp Business permanent access token",
+    defaultValue: "",
+    isSecret: true,
+  },
+  {
+    key: "WHATSAPP_API_VERSION",
+    category: "whatsapp",
+    description: "Meta Graph API version (e.g. v21.0)",
+    defaultValue: "v21.0",
+    isSecret: false,
+  },
 ];
 
 /**

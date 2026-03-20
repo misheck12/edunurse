@@ -103,6 +103,24 @@ const EnvSchema = z.object({
   SMTP_PASS: z.string().optional(),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   WHATSAPP_GROUP_LINK: z.string().optional(),
+
+  // SMS (Africa's Talking)
+  SMS_ENABLED: z
+    .string()
+    .default("false")
+    .transform((value) => value.trim().toLowerCase() === "true"),
+  AT_API_KEY: z.string().optional(),
+  AT_USERNAME: z.string().default("sandbox"),
+  AT_SENDER_ID: z.string().optional(),
+
+  // WhatsApp Business (Meta Cloud API)
+  WHATSAPP_ENABLED: z
+    .string()
+    .default("false")
+    .transform((value) => value.trim().toLowerCase() === "true"),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_API_VERSION: z.string().default("v21.0"),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

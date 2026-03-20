@@ -18,6 +18,7 @@ import adminAnalyticsRoutes from "./admin-analytics.js";
 import transactionRoutes from "./transactions.js";
 import profileRoutes from "./profile.js";
 import adminSettingsRoutes from "./admin-settings.js";
+import adminNotificationRoutes from "./admin-notifications.js";
 import chatRoutes from "./chat.js";
 
 export const registerRoutes: FastifyPluginAsync = async (app) => {
@@ -34,6 +35,7 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(adminManagementRoutes, { prefix: "/admin" }); // includes /admin/transactions
   await app.register(adminAnalyticsRoutes, { prefix: "/admin/analytics" });
   await app.register(adminSettingsRoutes, { prefix: "/admin" });
+  await app.register(adminNotificationRoutes, { prefix: "/admin" });
   await app.register(userRoutes, { prefix: "/users" });
   await app.register(templateRoutes, { prefix: "/templates" });
   await app.register(documentRoutes, { prefix: "/documents" });

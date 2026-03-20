@@ -7,6 +7,7 @@ import {
   SETTING_DEFINITIONS,
 } from "../services/system-settings.js";
 import { hashPassword } from "../services/auth-password.js";
+import { sendAdminPasswordResetNotification } from "../services/email.js";
 
 const updateSettingsSchema = z.object({
   settings: z.record(z.string()),
@@ -15,6 +16,7 @@ const updateSettingsSchema = z.object({
 const resetUserPasswordSchema = z.object({
   userId: z.string().uuid(),
   newPassword: z.string().min(8),
+  sendNotification: z.boolean().default(true),
 });
 
 const testEmailSchema = z.object({
@@ -101,10 +103,24 @@ const adminSettingsRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
+    // Send notification email with the temporary password
+    if (body.sendNotification) {
+      try {
+        await sendAdminPasswordResetNotification(
+          user.email,
+          user.fullName || "User",
+          body.newPassword,
+        );
+        app.log.info({ userId: body.userId }, "Password reset notification email sent");
+      } catch (emailErr) {
+        app.log.warn({ userId: body.userId, error: emailErr }, "Password reset email failed — password was still changed");
+      }
+    }
+
     app.log.info({ userId: body.userId, adminId: request.user?.sub }, "Admin reset user password");
 
     return reply.code(200).send({ 
-      message: `Password reset successfully for ${user.email}` 
+      message: `Password reset successfully for ${user.email}${body.sendNotification ? " (notification sent)" : ""}` 
     });
   });
 

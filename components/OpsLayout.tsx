@@ -7,6 +7,7 @@ import {
   Database,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Package,
   ReceiptText,
   Settings,
@@ -31,6 +32,7 @@ const navItems = [
   { to: "/ops/subscriptions", label: "Subscriptions", icon: CreditCard },
   { to: "/ops/transactions", label: "Transactions", icon: ReceiptText },
   { to: "/ops/ai", label: "AI Health", icon: BrainCircuit },
+  { to: "/ops/communications", label: "Comms", icon: MessageSquare },
   { to: "/ops/settings", label: "Settings", icon: Settings },
 ];
 
