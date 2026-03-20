@@ -44,7 +44,8 @@
   }
 
   /* Safe area bottom padding for fixed bottom bars */
-  .safe-bottom {
+  .safe-bottom,
+  .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }

@@ -129,7 +129,12 @@ function readDeferredExportQueue(): DeferredExportJobRecord[] {
 
 function writeDeferredExportQueue(queue: DeferredExportJobRecord[]) {
   if (!canUseLocalStorage()) return;
-  window.localStorage.setItem(DEFERRED_EXPORT_QUEUE_KEY, JSON.stringify(queue));
+  try {
+    window.localStorage.setItem(DEFERRED_EXPORT_QUEUE_KEY, JSON.stringify(queue));
+  } catch {
+    // Safari Private Browsing and some mobile WebViews throw on setItem
+    return;
+  }
   window.dispatchEvent(
     new CustomEvent("edunurse:offline-queue-updated", {
       detail: {
@@ -882,9 +887,18 @@ export async function downloadExportFile(
     onProgress(10);
   }
 
+  const mimeTypes: Record<string, string> = {
+    pdf: "application/pdf",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  };
+
   const response = await fetch(downloadUrl, {
     method: "GET",
-    headers: authHeaders,
+    headers: {
+      ...authHeaders,
+      Accept: mimeTypes[format] ?? "application/octet-stream",
+    },
   });
 
   if (!response.ok) {
@@ -903,29 +917,53 @@ export async function downloadExportFile(
   }
 
   const blob = await response.blob();
+
+  // Validate the blob is not empty and has correct-ish content type
+  if (blob.size === 0) {
+    throw new Error("Downloaded file is empty. Please try again.");
+  }
+
+  const contentType = blob.type.toLowerCase();
+  if (contentType.includes("text/html") || contentType.includes("application/json")) {
+    throw new Error("Download returned an invalid file format. Please try again.");
+  }
   
   if (onProgress) {
     onProgress(80);
   }
 
-  const objectUrl = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = `edunurse-export-${resolvedExportJobId}.${format}`;
-  
-  // For mobile, add target blank to help with download
-  if (/Android|webOS|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    link.target = '_blank';
+  const fileName = `edunurse-export-${resolvedExportJobId}.${format}`;
+
+  // iOS Safari and some mobile browsers cannot download blob: URLs via <a>.click().
+  // Detect mobile/iOS and use window.open() with a typed blob as fallback.
+  const isIOS = /iP(hone|ad|od)/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isMobile = isIOS || /Android|webOS/i.test(navigator.userAgent);
+
+  if (isIOS) {
+    // iOS Safari: open blob in a new tab — user can "Share > Save to Files"
+    const typedBlob = new Blob([blob], { type: mimeTypes[format] ?? "application/octet-stream" });
+    const blobUrl = window.URL.createObjectURL(typedBlob);
+    window.open(blobUrl, "_blank");
+    // iOS needs a longer delay before cleanup since the new tab must load the blob
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+  } else {
+    // Standard browser + Android: programmatic <a> click download
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = fileName;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+
+    // Longer delay for mobile browsers that are slower to initiate downloads
+    const cleanupDelay = isMobile ? 3000 : 500;
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+    }, cleanupDelay);
   }
-  
-  document.body.appendChild(link);
-  link.click();
-  
-  // Delay cleanup for mobile
-  setTimeout(() => {
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(objectUrl);
-  }, 100);
   
   if (onProgress) {
     onProgress(100);
@@ -1994,6 +2032,13 @@ export interface AdminUserListItem {
   id: string;
   email: string;
   fullName?: string | null;
+  phoneNumber?: string | null;
+  nrc?: string | null;
+  school?: string | null;
+  studentNumber?: string | null;
+  information?: string | null;
+  profileCompleted?: boolean;
+  emailVerified?: boolean;
   role: "educator" | "admin";
   isActive: boolean;
   createdAt: string;
@@ -2072,6 +2117,12 @@ export function updateAdminUser(
   userId: string,
   input: {
     fullName?: string | null;
+    email?: string;
+    phoneNumber?: string | null;
+    nrc?: string | null;
+    school?: string | null;
+    studentNumber?: string | null;
+    information?: string | null;
     role?: "educator" | "admin";
     isActive?: boolean;
   },

@@ -33,6 +33,12 @@ const listUsersSchema = paginationSchema.extend({
 
 const updateUserSchema = z.object({
   fullName: z.string().min(1).nullable().optional(),
+  email: z.string().email().optional(),
+  phoneNumber: z.string().nullable().optional(),
+  nrc: z.string().nullable().optional(),
+  school: z.string().nullable().optional(),
+  studentNumber: z.string().nullable().optional(),
+  information: z.string().nullable().optional(),
   role: userRoleSchema.optional(),
   isActive: z.boolean().optional(),
 });
@@ -295,8 +301,21 @@ const adminManagementRoutes: FastifyPluginAsync = async (app) => {
       where: { id: params.userId },
       data: {
         fullName: body.fullName,
+        email: body.email,
+        phoneNumber: body.phoneNumber,
+        nrc: body.nrc,
+        school: body.school,
+        studentNumber: body.studentNumber,
+        information: body.information,
         role: body.role,
         isActive: body.isActive,
+      },
+      include: {
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: { plan: true },
+        },
       },
     });
   });

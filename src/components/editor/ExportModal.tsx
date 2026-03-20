@@ -31,6 +31,12 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, documentId, 
             setExportError(null);
             setIsExporting(false);
         }
+        // Lock body scroll when modal is open (critical for mobile)
+        if (isOpen) {
+            const prev = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => { document.body.style.overflow = prev; };
+        }
     }, [isOpen]);
 
     useEffect(() => {
@@ -42,6 +48,12 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, documentId, 
 
         const poll = async () => {
             if (!active) return;
+
+            // Pause polling when tab is hidden (saves battery on mobile)
+            if (document.hidden) {
+                window.setTimeout(() => { void poll(); }, 3000);
+                return;
+            }
 
             attempts += 1;
 
@@ -161,29 +173,32 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, documentId, 
     const statusProps = getStatusDisplay();
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-sm animate-in fade-in duration-200 sm:p-4">
-            <div className="w-full max-w-2xl scale-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all transform">
-                <div className="flex items-start justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-4 sm:px-8 sm:py-6">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-900">Export Document</h2>
-                        <p className="text-slate-500 text-sm mt-1">{documentTitle}</p>
+        <div
+            className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-slate-900/60 p-0 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+            <div className="w-full max-h-[100dvh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:max-h-[90vh] border border-slate-200">
+                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-100 bg-slate-50/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Export Document</h2>
+                        <p className="text-slate-500 text-sm mt-1 truncate">{documentTitle}</p>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
-                <div className="space-y-6 px-4 py-5 sm:space-y-8 sm:px-8 sm:py-8">
+                <div className="space-y-5 px-4 py-4 pb-safe sm:space-y-8 sm:px-8 sm:py-8">
                     {/* Format Selection */}
                     <section>
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Select Format</h3>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-3">
                             {[
-                                { name: 'Microsoft Word', ext: '.docx', value: 'docx', icon: FileText, desc: 'Editable office document' },
-                                { name: 'PDF Document', ext: '.pdf', value: 'pdf', icon: FileDown, desc: 'Optimized for printing' },
-                                { name: 'PowerPoint', ext: '.pptx', value: 'pptx', icon: FileText, desc: 'Academic slide deck' }
+                                { name: 'Word', fullName: 'Microsoft Word', ext: '.docx', value: 'docx', icon: FileText, desc: 'Editable document' },
+                                { name: 'PDF', fullName: 'PDF Document', ext: '.pdf', value: 'pdf', icon: FileDown, desc: 'For printing' },
+                                { name: 'PowerPoint', fullName: 'PowerPoint', ext: '.pptx', value: 'pptx', icon: FileText, desc: 'Slide deck' }
                             ].map((opt) => (
-                                <label key={opt.value} className="cursor-pointer relative group">
+                                <label key={opt.value} className="cursor-pointer relative group touch-manipulation">
                                     <input
                                         type="radio"
                                         name="format"
@@ -196,18 +211,19 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, documentId, 
                                         }}
                                         disabled={isExporting || isExportReady}
                                     />
-                                    <div className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${exportFormat === opt.value
+                                    <div className={`flex flex-col items-center justify-center p-3 sm:p-6 rounded-xl border-2 transition-all min-h-[100px] sm:min-h-[140px] ${exportFormat === opt.value
                                             ? 'border-blue-500 bg-blue-50/30'
                                             : 'border-slate-200 hover:border-blue-200 hover:bg-slate-50'
                                         } ${isExporting || isExportReady ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                        <div className={`mb-4 p-3 rounded-full ${exportFormat === opt.value ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
+                                        <div className={`mb-2 sm:mb-4 p-2 sm:p-3 rounded-full ${exportFormat === opt.value ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
                                             }`}>
-                                            <opt.icon size={32} strokeWidth={1.5} />
+                                            <opt.icon size={24} className="sm:w-8 sm:h-8" strokeWidth={1.5} />
                                         </div>
-                                        <span className={`font-semibold ${exportFormat === opt.value ? 'text-blue-700' : 'text-slate-700'}`}>
-                                            {opt.name}
+                                        <span className={`font-semibold text-xs sm:text-sm text-center ${exportFormat === opt.value ? 'text-blue-700' : 'text-slate-700'}`}>
+                                            <span className="sm:hidden">{opt.name}</span>
+                                            <span className="hidden sm:inline">{opt.fullName}</span>
                                         </span>
-                                        <span className="text-xs text-slate-500 mt-1">{opt.desc}</span>
+                                        <span className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 text-center">{opt.desc}</span>
 
                                         {exportFormat === opt.value && (
                                             <div className="absolute top-3 right-3 text-blue-500 animate-in zoom-in duration-200">

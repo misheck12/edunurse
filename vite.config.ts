@@ -24,6 +24,16 @@ export default defineConfig(({ mode }) => {
             globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
             runtimeCaching: [
               {
+                // NEVER cache binary downloads or export status polls
+                urlPattern: /^https?:\/\/[^/]+\/api\/v1\/exports\/.*/i,
+                handler: 'NetworkOnly',
+              },
+              {
+                // NEVER cache SSE streaming endpoints
+                urlPattern: /^https?:\/\/[^/]+\/api\/v1\/chat$/i,
+                handler: 'NetworkOnly',
+              },
+              {
                 urlPattern: /^https?:\/\/[^/]+\/api\/v1\/.*/i,
                 handler: 'NetworkFirst',
                 options: {
@@ -33,7 +43,7 @@ export default defineConfig(({ mode }) => {
                     maxAgeSeconds: 60 * 60 * 24 // 24 hours
                   },
                   cacheableResponse: {
-                    statuses: [0, 200]
+                    statuses: [200] // Don't cache opaque responses (status 0)
                   }
                 }
               },

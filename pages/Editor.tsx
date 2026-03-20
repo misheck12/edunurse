@@ -448,11 +448,16 @@ const Editor: React.FC = () => {
                         <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
                     </button>
                     <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                        <Share2 size={16} /> Share
+                        <Share2 size={16} /> <span className="hidden xs:inline">Share</span>
                     </button>
                     <button
-                        onClick={() => setShowExportModal(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                        onClick={async () => {
+                            // Auto-save before export so the backend exports the latest content
+                            try { await saveCurrentDocument(); } catch { /* proceed anyway */ }
+                            setShowExportModal(true);
+                        }}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 disabled:opacity-60"
                     >
                         <Upload size={16} /> Export
                     </button>
