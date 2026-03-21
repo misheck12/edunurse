@@ -54,6 +54,11 @@ const EnvSchema = z.object({
   RETRIEVAL_MIN_COVERAGE: z.coerce.number().int().positive().default(3),
   RETRIEVAL_VECTOR_WEIGHT: z.coerce.number().positive().default(40),
   RETRIEVAL_FTS_WEIGHT: z.coerce.number().nonnegative().default(18),
+  CHAT_RAG_ENABLED: z
+    .string()
+    .default("true")
+    .transform((value) => value.trim().toLowerCase() === "true"),
+  CHAT_RAG_TOP_K: z.coerce.number().int().positive().default(6),
   INGESTION_EMBEDDINGS_ENABLED: z
     .string()
     .default("true")

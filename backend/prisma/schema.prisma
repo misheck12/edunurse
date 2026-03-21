@@ -309,6 +309,7 @@ model DocumentSection {
   document          Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
   documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
   citations         SectionCitation[]
+  competencyTags    DocumentCompetencyTag[]
 
   @@unique([documentVersionId, sectionKey])
   @@index([documentId, position])
@@ -709,6 +710,95 @@ model ChatMessage {
 
   @@index([conversationId, createdAt])
   @@map("chat_messages")
+}
+
+// ---------------------------------------------------------------------------
+// NMCZ Competency Framework — maps regulatory competencies to generated content
+// ---------------------------------------------------------------------------
+
+enum NmczCompetencyDomain {
+  clinical
+  professional
+  ethical
+  communication
+  leadership
+  research
+}
+
+enum NmczProgrammeLevel {
+  diploma
+  bsc
+  masters
+}
+
+enum NmczPractitionerType {
+  rn    // Registered Nurse
+  rm    // Registered Midwife
+  en    // Enrolled Nurse
+  enm   // Enrolled Nurse Midwife
+}
+
+model NmczCompetency {
+  id                String                @id @default(uuid()) @db.Uuid
+  code              String                @unique
+  domain            NmczCompetencyDomain
+  title             String
+  description       String
+  programmeLevel    NmczProgrammeLevel    @map("programme_level")
+  practitionerType  NmczPractitionerType  @map("practitioner_type")
+  yearLevel         Int?                  @map("year_level") // 1-4
+  parentId          String?               @map("parent_id") @db.Uuid
+  isActive          Boolean               @default(true) @map("is_active")
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parent            NmczCompetency?       @relation("NmczCompetencyHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          NmczCompetency[]      @relation("NmczCompetencyHierarchy")
+  documentTags      DocumentCompetencyTag[]
+  scopeRules        ScopeOfPracticeRule[]
+
+  @@index([domain, programmeLevel])
+  @@index([practitionerType, yearLevel])
+  @@map("nmcz_competencies")
+}
+
+model DocumentCompetencyTag {
+  id                String          @id @default(uuid()) @db.Uuid
+  documentSectionId String          @map("document_section_id") @db.Uuid
+  competencyId      String          @map("competency_id") @db.Uuid
+  confidence        Decimal?        @db.Decimal(5, 4)
+  taggedByAi        Boolean         @default(true) @map("tagged_by_ai")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  section           DocumentSection @relation(fields: [documentSectionId], references: [id], onDelete: Cascade)
+  competency        NmczCompetency  @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  @@unique([documentSectionId, competencyId])
+  @@index([competencyId])
+  @@map("document_competency_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Scope of Practice Rules — validates generated content against HPCZ/NMCZ
+// ---------------------------------------------------------------------------
+
+model ScopeOfPracticeRule {
+  id                String               @id @default(uuid()) @db.Uuid
+  competencyId      String?              @map("competency_id") @db.Uuid
+  procedureName     String               @map("procedure_name")
+  procedureKeywords String[]             @map("procedure_keywords")
+  minProgrammeLevel NmczProgrammeLevel   @map("min_programme_level")
+  minYearLevel      Int                  @map("min_year_level")
+  requiresSupervision Boolean            @default(false) @map("requires_supervision")
+  practitionerTypes NmczPractitionerType[] @map("practitioner_types")
+  riskLevel         String               @default("standard") @map("risk_level") // "low" | "standard" | "high" | "critical"
+  regulatoryNote    String?              @map("regulatory_note")
+  isActive          Boolean              @default(true) @map("is_active")
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  competency        NmczCompetency?      @relation(fields: [competencyId], references: [id], onDelete: SetNull)
+
+  @@index([minProgrammeLevel, minYearLevel])
+  @@index([procedureName])
+  @@map("scope_of_practice_rules")
 }
 
 // ---------------------------------------------------------------------------

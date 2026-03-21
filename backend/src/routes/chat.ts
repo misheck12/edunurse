@@ -5,11 +5,17 @@
  * Uses the same provider-fallback infrastructure as the rest of the platform.
  */
 
-import { FastifyPluginAsync } from "fastify";
+import { FastifyPluginAsync, FastifyInstance } from "fastify";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { env } from "../config.js";
 import { requireUserId } from "../services/auth-helpers.js";
 import { ensureServiceEnabled } from "../services/service-controls.js";
+import {
+  embedTextsWithFallback,
+  vectorToSqlLiteral,
+} from "../services/embeddings.js";
+import type { RetrievalChunkForPrompt } from "../services/ai-layer.js";
 import type { OutgoingHttpHeaders } from "http";
 
 // ---------------------------------------------------------------------------
@@ -54,22 +60,65 @@ function isProviderConfigured(p: ProviderName): boolean {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// HPCZ / NMCZ Regulatory Preamble — shared across all chat contexts
+// ---------------------------------------------------------------------------
+const REGULATORY_PREAMBLE = [
+  "ZAMBIAN REGULATORY FRAMEWORK — you MUST adhere to these at all times:",
+  "- NMCZ (Nursing and Midwifery Council of Zambia) scope-of-practice boundaries for the student's training level.",
+  "- HPCZ (Health Professions Council of Zambia) Act Cap 302 ethical standards and Code of Ethics.",
+  "- Zambian Standard Treatment Guidelines (STGs) and Essential Medicines List (EML) for all drug recommendations.",
+  "- WHO clinical guidelines adapted for the Zambian healthcare context.",
+  "- Never recommend procedures outside the student's training level scope (Diploma vs BSc, Year 1-4).",
+  "- Always distinguish between RN, RM, and EN scope-of-practice when relevant.",
+  "- Flag any advice that requires clinical supervision or is beyond student-level practice with: ⚠️ *Requires qualified supervision.*",
+  "- When discussing clinical procedures, note whether they fall within NMCZ Diploma or BSc competency level.",
+  "- For ethical dilemmas, ground your reasoning in the HPCZ Code of Ethics (respect for persons, beneficence, non-maleficence, justice).",
+  "- If a question involves scope boundaries, always err on the side of caution and recommend consulting a clinical instructor.",
+  "",
+  "CURRICULUM GROUNDING:",
+  "- When curriculum context is provided below, base your answer on those retrieved chunks FIRST.",
+  "- If the retrieved context does not cover the question, you may use your general knowledge but clearly mark it: *(General knowledge — verify against local protocol.)*",
+  "- Never invent specific drug dosages, clinical protocols, or procedure steps that are not supported by the provided context or well-established guidelines.",
+].join("\n");
+
 const SYSTEM_PROMPTS: Record<string, string> = {
-  clinical: `You are EduNurse AI, a knowledgeable and supportive clinical nursing assistant designed for Zambian nursing and midwifery students. 
-You provide evidence-based answers grounded in the Zambian NMC syllabus and WHO clinical guidelines. 
-When answering clinical questions, reference standard protocols and Zambian healthcare contexts.
-Use clear, concise language appropriate for nursing students. Include relevant drug dosages, procedures, and clinical reasoning when applicable.
-Format your responses with markdown: use headings, bullet points, and bold text for clarity.
-If a question is outside your expertise or could be dangerous, advise the student to consult a qualified clinical instructor.`,
+  clinical: [
+    "You are EduNurse AI, a knowledgeable and supportive clinical nursing assistant designed for Zambian nursing and midwifery students.",
+    "You provide evidence-based answers grounded in the NMCZ syllabus, HPCZ standards, and WHO clinical guidelines.",
+    "When answering clinical questions, reference standard protocols and Zambian healthcare contexts.",
+    "Use clear, concise language appropriate for nursing students. Include relevant drug dosages, procedures, and clinical reasoning when applicable.",
+    "Format your responses with markdown: use headings, bullet points, and bold text for clarity.",
+    "If a question is outside your expertise or could be dangerous, advise the student to consult a qualified clinical instructor.",
+    "For drug information, always reference the Zambian EML and STGs. Include NMCZ nursing considerations.",
+    "When discussing clinical procedures, specify the NMCZ competency level required (observed → assisted → performed → independent).",
+    "",
+    REGULATORY_PREAMBLE,
+  ].join("\n"),
 
-  pharmacology: `You are EduNurse AI, a pharmacology tutor for Zambian nursing students.
-Help with drug calculations, mechanisms of action, side effects, nursing considerations, and Zambian Essential Medicines List (EML).
-Always include safety warnings and double-check dosage calculations. Use markdown formatting.`,
+  pharmacology: [
+    "You are EduNurse AI, a pharmacology tutor for Zambian nursing students.",
+    "Help with drug calculations, mechanisms of action, side effects, nursing considerations, and Zambian Essential Medicines List (EML).",
+    "Always include safety warnings and double-check dosage calculations. Use markdown formatting.",
+    "Reference the Zambian Standard Treatment Guidelines (STGs) for first-line treatment protocols.",
+    "Note when a drug requires prescription authority beyond the student's NMCZ scope of practice.",
+    "For controlled substances, always mention the HPCZ regulatory requirements and documentation standards.",
+    "Include NMCZ nursing considerations: patient education, monitoring parameters, and when to escalate.",
+    "",
+    REGULATORY_PREAMBLE,
+  ].join("\n"),
 
-  general: `You are EduNurse AI, a helpful study companion for nursing and midwifery students in Zambia.
-You can help with studying, explaining concepts, preparing for NMC exams, understanding clinical procedures, drug calculations, and general academic support.
-Be encouraging, clear, and evidence-based. Use markdown formatting with headings and bullet points for readable responses.
-If asked about something outside nursing/healthcare, you can still help but gently remind the student of your specialty.`,
+  general: [
+    "You are EduNurse AI, a helpful study companion for nursing and midwifery students in Zambia.",
+    "You can help with studying, explaining concepts, preparing for NMC exams, understanding clinical procedures, drug calculations, and general academic support.",
+    "Be encouraging, clear, and evidence-based. Use markdown formatting with headings and bullet points for readable responses.",
+    "If asked about something outside nursing/healthcare, you can still help but gently remind the student of your specialty.",
+    "When preparing students for NMCZ examinations, align your explanations with the NMCZ competency framework.",
+    "For professional practice questions, ground answers in the HPCZ Act Cap 302 and HPCZ Code of Ethics.",
+    "Encourage students to develop clinical reasoning skills aligned with NMCZ training standards.",
+    "",
+    REGULATORY_PREAMBLE,
+  ].join("\n"),
 };
 
 // ---------------------------------------------------------------------------
@@ -240,6 +289,157 @@ function deriveTitle(content: string): string {
   return clean.slice(0, 47) + "…";
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenize(text: string) {
+  return Array.from(
+    new Set(
+      normalizeSearchText(text)
+        .split(/\s+/)
+        .filter((t) => t.length >= 3),
+    ),
+  ).slice(0, 12);
+}
+
+/**
+ * Retrieve curriculum chunks relevant to a chat question using hybrid
+ * keyword + vector search. This mirrors the retrieval pipeline used by
+ * the generation and curriculum-QA routes but is tuned for quick
+ * conversational look-ups (fewer chunks, shorter latency).
+ */
+async function retrieveChatContext(
+  app: FastifyInstance,
+  userMessage: string,
+  contextHint: string,
+): Promise<RetrievalChunkForPrompt[]> {
+  const CHAT_RETRIEVAL_LIMIT = 6;
+  const CHAT_CANDIDATE_K = 60;
+
+  try {
+    const activeVersion = await app.prisma.curriculumVersion.findFirst({
+      where: { isActive: true },
+      select: { id: true },
+    });
+    if (!activeVersion) return [];
+
+    const terms = tokenize(userMessage);
+    if (terms.length === 0) return [];
+
+    const keywordFilters: Prisma.CurriculumChunkWhereInput[] = terms.flatMap(
+      (term) => [
+        { text: { contains: term, mode: "insensitive" as const } },
+        { heading: { contains: term, mode: "insensitive" as const } },
+      ],
+    );
+
+    const candidates = await app.prisma.curriculumChunk.findMany({
+      where: {
+        curriculumVersionId: activeVersion.id,
+        source: { status: "indexed" },
+        OR: keywordFilters,
+      },
+      take: CHAT_CANDIDATE_K,
+      include: {
+        source: { select: { id: true, name: true, sourceType: true } },
+      },
+    });
+
+    if (candidates.length === 0) return [];
+
+    // Prefer standards/guideline sources for regulatory questions
+    const isRegulatoryQuestion =
+      /\b(hpcz|nmcz|nmc|scope|ethics|code of conduct|regulation|guideline|standard|competenc)/i.test(
+        userMessage,
+      );
+
+    // Score candidates by keyword relevance
+    const scored = candidates.map((chunk) => {
+      const haystack = normalizeSearchText(
+        `${chunk.heading ?? ""} ${chunk.text} ${chunk.source.name}`,
+      );
+      let score = 0;
+      for (const term of terms) {
+        if (haystack.includes(term)) score += 1;
+      }
+      // Boost regulatory sources when the question is regulatory
+      if (
+        isRegulatoryQuestion &&
+        (chunk.source.sourceType === "standards" ||
+          chunk.source.sourceType === "guideline")
+      ) {
+        score += 3;
+      }
+      return { chunk, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    // Optional: enrich with vector similarity if a real embedding provider is available
+    const topCandidates = scored.slice(0, Math.min(30, scored.length));
+    try {
+      const embResult = await embedTextsWithFallback([userMessage]);
+      if (embResult.provider !== "local" && embResult.vectors[0]) {
+        const vectorLiteral = vectorToSqlLiteral(embResult.vectors[0]);
+        const safeIds = topCandidates.map((e) => e.chunk.id);
+        const idSql = Prisma.join(
+          safeIds.map((id) => Prisma.sql`${id}::uuid`),
+          ", ",
+        );
+        const rows = await app.prisma.$queryRaw<
+          Array<{ id: string; score: number }>
+        >(Prisma.sql`
+          SELECT id::text AS id,
+                 (1 - (embedding <=> ${Prisma.raw(vectorLiteral)}::vector))::float8 AS score
+          FROM curriculum_chunks
+          WHERE id IN (${idSql}) AND embedding IS NOT NULL
+          ORDER BY embedding <=> ${Prisma.raw(vectorLiteral)}::vector
+          LIMIT 30
+        `);
+        const vectorMap = new Map(rows.map((r) => [r.id, r.score]));
+        for (const entry of topCandidates) {
+          entry.score += (vectorMap.get(entry.chunk.id) ?? 0) * 20;
+        }
+        topCandidates.sort((a, b) => b.score - a.score);
+      }
+    } catch {
+      // Vector enrichment is best-effort; keyword ranking is sufficient fallback.
+    }
+
+    return topCandidates.slice(0, CHAT_RETRIEVAL_LIMIT).map((entry) => ({
+      chunkId: entry.chunk.id,
+      sourceId: entry.chunk.sourceId,
+      sourceName: entry.chunk.source.name,
+      page: entry.chunk.page ?? null,
+      heading: entry.chunk.heading ?? null,
+      text: entry.chunk.text,
+    }));
+  } catch (err) {
+    app.log.warn(`Chat RAG retrieval failed: ${(err as Error).message}`);
+    return [];
+  }
+}
+
+/**
+ * Format retrieved chunks into a context block to inject into the system prompt.
+ */
+function formatChunksForChat(chunks: RetrievalChunkForPrompt[]): string {
+  if (chunks.length === 0) return "";
+  const header = "\n\nCURRICULUM CONTEXT (retrieved from ingested NMCZ/HPCZ sources — prioritise this):";
+  const body = chunks
+    .map(
+      (c, i) =>
+        `[Source ${i + 1}: ${c.sourceName}${c.page ? `, p.${c.page}` : ""}]\n${c.text.slice(0, 1200)}`,
+    )
+    .join("\n\n");
+  return `${header}\n${body}`;
+}
+
 // ---------------------------------------------------------------------------
 // Route
 // ---------------------------------------------------------------------------
@@ -353,8 +553,15 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     await ensureServiceEnabled(app, "chat");
 
     const body = chatRequestSchema.parse(request.body);
-    const systemPrompt = SYSTEM_PROMPTS[body.context] ?? SYSTEM_PROMPTS.general;
     const userContent = body.messages[body.messages.length - 1]?.content ?? "";
+
+    // ── RAG Retrieval: ground the chat in curriculum + regulatory sources ──
+    const retrievedChunks = env.CHAT_RAG_ENABLED
+      ? await retrieveChatContext(app, userContent, body.context)
+      : [];
+    const contextBlock = formatChunksForChat(retrievedChunks);
+    const systemPrompt =
+      (SYSTEM_PROMPTS[body.context] ?? SYSTEM_PROMPTS.general) + contextBlock;
 
     // Resolve or create conversation
     let conversationId = body.conversationId;

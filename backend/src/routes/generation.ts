@@ -19,6 +19,10 @@ import {
   ensureStudioDocumentServiceEnabled,
 } from "../services/service-controls.js";
 import { checkGenerationLimit } from "../services/usage-limits.js";
+import {
+  validateScopeOfPractice,
+  type ScopeValidationResult,
+} from "../services/scope-of-practice.js";
 
 const runGenerationSchema = z.object({
   documentId: z.string().uuid().optional(),
@@ -1068,6 +1072,41 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
 
       const outputJson = toJson(aiResult.output);
 
+      // ── Scope-of-Practice Validation ──
+      // Extract all text from the generated output for validation
+      let scopeValidation: ScopeValidationResult | null = null;
+      try {
+        const outputRecord = aiResult.output as Record<string, unknown>;
+        const sections = outputRecord.sections as Array<Record<string, unknown>> | undefined;
+        const allText = (sections ?? [])
+          .map((s) => {
+            if (typeof s.content === "string") return s.content;
+            if (Array.isArray(s.content)) return s.content.map(String).join(" ");
+            return JSON.stringify(s.content);
+          })
+          .join("\n");
+
+        if (allText.length > 50) {
+          const programmeLevel =
+            selectedProgrammeLevel?.toLowerCase().includes("bsc")
+              ? "bsc"
+              : "diploma";
+          const yearMatch = (selectedSemester ?? body.year ?? "").match(/(\d)/);
+          const yearLevel = yearMatch
+            ? Math.ceil(parseInt(yearMatch[1], 10) / 2) // semester → year
+            : 2;
+
+          scopeValidation = await validateScopeOfPractice(app.prisma, {
+            content: allText,
+            programmeLevel: programmeLevel as "diploma" | "bsc" | "masters",
+            yearLevel,
+            documentType: body.documentType,
+          });
+        }
+      } catch {
+        // Scope validation is best-effort; don't block generation
+      }
+
       const finalRun = await app.prisma.$transaction(async (tx) => {
         const updatedRun = await tx.generationRun.update({
           where: { id: baseRun.id },
@@ -1115,7 +1154,70 @@ const generationRoutes: FastifyPluginAsync = async (app) => {
         return updatedRun;
       });
 
-      return reply.code(201).send(finalRun);
+      // Persist scope-of-practice flags if any violations/warnings were found
+      if (scopeValidation && (!scopeValidation.passed || scopeValidation.warnings.length > 0)) {
+        try {
+          const flagPromises = [];
+          for (const violation of scopeValidation.violations) {
+            flagPromises.push(
+              app.prisma.generationFlag.create({
+                data: {
+                  generationRunId: baseRun.id,
+                  flagType: "scope_of_practice_violation",
+                  severity: violation.riskLevel === "critical" ? "blocking" : "warning",
+                  detailsJson: {
+                    procedureName: violation.procedureName,
+                    matchedKeywords: violation.matchedKeywords,
+                    requiredLevel: violation.requiredLevel,
+                    requiredYear: violation.requiredYear,
+                    requiresSupervision: violation.requiresSupervision,
+                    riskLevel: violation.riskLevel,
+                    regulatoryNote: violation.regulatoryNote,
+                    contextSnippet: violation.contextSnippet,
+                  } as Prisma.InputJsonValue,
+                },
+              }),
+            );
+          }
+          for (const warning of scopeValidation.warnings) {
+            flagPromises.push(
+              app.prisma.generationFlag.create({
+                data: {
+                  generationRunId: baseRun.id,
+                  flagType: "scope_requires_supervision",
+                  severity: "info",
+                  detailsJson: {
+                    procedureName: warning.procedureName,
+                    matchedKeywords: warning.matchedKeywords,
+                    requiresSupervision: true,
+                    regulatoryNote: warning.regulatoryNote,
+                  } as Prisma.InputJsonValue,
+                },
+              }),
+            );
+          }
+          await Promise.all(flagPromises);
+        } catch {
+          // Best-effort flag persistence
+        }
+      }
+
+      // Attach scope validation to the response
+      const responsePayload = {
+        ...finalRun,
+        scopeValidation: scopeValidation
+          ? {
+              passed: scopeValidation.passed,
+              summary: scopeValidation.summary,
+              violationCount: scopeValidation.violations.length,
+              warningCount: scopeValidation.warnings.length,
+              violations: scopeValidation.violations,
+              warnings: scopeValidation.warnings,
+            }
+          : null,
+      };
+
+      return reply.code(201).send(responsePayload);
     } catch (error) {
       const internalMessage =
         error instanceof Error ? error.message : "AI generation failed.";

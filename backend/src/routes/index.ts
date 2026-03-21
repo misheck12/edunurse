@@ -20,6 +20,7 @@ import profileRoutes from "./profile.js";
 import adminSettingsRoutes from "./admin-settings.js";
 import adminNotificationRoutes from "./admin-notifications.js";
 import chatRoutes from "./chat.js";
+import nmcExamRoutes from "./nmc-exam.js";
 
 export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoutes);
@@ -42,5 +43,6 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(curriculumRoutes, { prefix: "/curriculum" });
   await app.register(assignmentSupportRoutes, { prefix: "/assignment-support" });
   await app.register(generationRoutes, { prefix: "/generation" });
+  await app.register(nmcExamRoutes, { prefix: "/nmc-exam" });
   await app.register(exportRoutes, { prefix: "/exports" });
 };
