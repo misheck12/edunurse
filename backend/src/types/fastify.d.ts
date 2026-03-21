@@ -9,7 +9,7 @@ declare module "fastify" {
     currentUserId: string | null;
     user: {
       sub: string;
-      role: "admin" | "educator";
+      role: "admin" | "educator" | "student";
     } | null;
   }
 }

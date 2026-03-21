@@ -37,7 +37,7 @@ const requestContextPlugin: FastifyPluginAsync = async (app) => {
       request.currentUserId = headerValue;
       request.user = {
         sub: headerValue,
-        role: "educator",
+        role: "student",
       };
 
       // Development fallback for non-authenticated local workflows.
@@ -49,7 +49,7 @@ const requestContextPlugin: FastifyPluginAsync = async (app) => {
           email: `${headerValue}@dev.edunurse.local`,
           passwordHash: "dev_only_replace_me",
           fullName: "Development User",
-          role: "educator",
+          role: "student",
         },
       });
     }

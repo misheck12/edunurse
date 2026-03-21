@@ -1028,7 +1028,7 @@ export interface CurrentUserResponse {
   studentNumber?: string | null;
   information?: string | null;
   profileCompleted?: boolean;
-  role: "educator" | "admin";
+  role: "student" | "educator" | "admin";
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -1853,7 +1853,7 @@ export interface OpsGenerationRunItem extends GenerationRunResponse {
   user?: {
     id: string;
     email: string;
-    role: "educator" | "admin";
+    role: "student" | "educator" | "admin";
   };
 }
 
@@ -1899,7 +1899,7 @@ export interface OpsExportJobItem {
   user?: {
     id: string;
     email: string;
-    role: "educator" | "admin";
+    role: "student" | "educator" | "admin";
   };
 }
 
@@ -2039,7 +2039,7 @@ export interface AdminUserListItem {
   information?: string | null;
   profileCompleted?: boolean;
   emailVerified?: boolean;
-  role: "educator" | "admin";
+  role: "student" | "educator" | "admin";
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -2072,7 +2072,7 @@ export function listAdminUsers(input?: {
   page?: number;
   pageSize?: number;
   search?: string;
-  role?: "educator" | "admin";
+  role?: "student" | "educator" | "admin";
   isActive?: boolean;
 }) {
   const query = new URLSearchParams();
@@ -2097,7 +2097,7 @@ export function getAdminUser(userId: string) {
 export function createAdminUser(input: {
   email: string;
   fullName?: string;
-  role?: "educator" | "admin";
+  role?: "student" | "educator" | "admin";
   isActive?: boolean;
   preferences?: {
     defaultProgramme?: string;
@@ -2123,7 +2123,7 @@ export function updateAdminUser(
     school?: string | null;
     studentNumber?: string | null;
     information?: string | null;
-    role?: "educator" | "admin";
+    role?: "student" | "educator" | "admin";
     isActive?: boolean;
   },
 ) {
@@ -2189,7 +2189,7 @@ export interface AdminSubscription {
     id: string;
     email: string;
     fullName?: string | null;
-    role: "educator" | "admin";
+    role: "student" | "educator" | "admin";
     isActive: boolean;
   };
   plan?: AdminPlan;
@@ -2437,7 +2437,7 @@ export function broadcastAdminNotification(data: {
   subject?: string;
   body: string;
   userIds?: string[];
-  filterRole?: "educator" | "admin";
+  filterRole?: "student" | "educator" | "admin";
 }) {
   return request<{
     success: boolean;

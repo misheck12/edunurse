@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { requireAdminUser } from "../services/auth-helpers.js";
 
-const userRoleSchema = z.enum(["educator", "admin"]);
+const userRoleSchema = z.enum(["student", "educator", "admin"]);
 const subscriptionStatusSchema = z.enum([
   "trialing",
   "active",
@@ -46,7 +46,7 @@ const updateUserSchema = z.object({
 const createUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(1).optional(),
-  role: userRoleSchema.default("educator"),
+  role: userRoleSchema.default("student"),
   isActive: z.boolean().default(true),
   preferences: z
     .object({

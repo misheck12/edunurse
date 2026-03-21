@@ -37,7 +37,7 @@ const sendBulkSchema = z.object({
   /** If provided, only send to these user IDs. Otherwise send to all active users. */
   userIds: z.array(z.string().uuid()).optional(),
   /** Filter: only users with a specific role */
-  filterRole: z.enum(["educator", "admin"]).optional(),
+  filterRole: z.enum(["student", "educator", "admin"]).optional(),
 });
 
 const logQuerySchema = z.object({

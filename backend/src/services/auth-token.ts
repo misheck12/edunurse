@@ -66,7 +66,7 @@ export function verifyAuthToken(token: string): AuthTokenPayload | null {
 
     if (
       typeof payload.sub !== "string" ||
-      (payload.role !== "admin" && payload.role !== "educator") ||
+      (payload.role !== "admin" && payload.role !== "educator" && payload.role !== "student") ||
       typeof payload.iat !== "number" ||
       typeof payload.exp !== "number"
     ) {

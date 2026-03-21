@@ -173,7 +173,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         studentNumber: body.studentNumber.trim(),
         information: body.information?.trim() || "",
         profileCompleted: true, // All required fields provided during signup
-        role: "educator",
+        role: "student",
         isActive: true,
         emailVerified: false,
         emailVerificationToken: verificationToken,
@@ -184,7 +184,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 
     // Send welcome email
     await sendWelcomeEmail(createdUser.email, {
-      userName: createdUser.fullName || "Educator",
+      userName: createdUser.fullName || "Student",
       freeGenerations: 2,
     }).catch((err) => {
       app.log.error({ error: err }, "Failed to send welcome email");

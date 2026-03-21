@@ -120,7 +120,7 @@ const OpsDashboard: React.FC = () => {
   const [userSearch, setUserSearch] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserFullName, setNewUserFullName] = useState("");
-  const [newUserRole, setNewUserRole] = useState<"educator" | "admin">("educator");
+  const [newUserRole, setNewUserRole] = useState<"student" | "educator" | "admin">("student");
   const [newUserProgramme, setNewUserProgramme] = useState("Nursing");
   const [creatingUser, setCreatingUser] = useState(false);
   const [newUserError, setNewUserError] = useState<string | null>(null);
@@ -587,8 +587,8 @@ const OpsDashboard: React.FC = () => {
     }
   };
 
-  const toggleUserRole = async (user: AdminUserListItem) => {
-    const nextRole = user.role === "admin" ? "educator" : "admin";
+  const changeUserRole = async (user: AdminUserListItem, nextRole: "student" | "educator" | "admin") => {
+    if (nextRole === user.role) return;
     try {
       await updateAdminUser(user.id, { role: nextRole });
       setNotice(`User ${user.email} role updated to ${nextRole}.`);
@@ -622,7 +622,7 @@ const OpsDashboard: React.FC = () => {
 
       setNewUserEmail("");
       setNewUserFullName("");
-      setNewUserRole("educator");
+      setNewUserRole("student");
       setNewUserProgramme("Nursing");
       setNotice(`User ${email} created.`);
       await loadUsers(userSearch);
@@ -1973,10 +1973,11 @@ const OpsDashboard: React.FC = () => {
               <select
                 value={newUserRole}
                 onChange={(event) =>
-                  setNewUserRole(event.target.value as "educator" | "admin")
+                  setNewUserRole(event.target.value as "student" | "educator" | "admin")
                 }
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white"
               >
+                <option value="student">student</option>
                 <option value="educator">educator</option>
                 <option value="admin">admin</option>
               </select>
@@ -2034,12 +2035,15 @@ const OpsDashboard: React.FC = () => {
                         {user.subscriptions?.[0]?.plan?.name ?? "n/a"}
                       </td>
                       <td className="py-3 pr-0 text-right space-x-2">
-                        <button
-                          onClick={() => void toggleUserRole(user)}
-                          className="px-2.5 py-1.5 rounded border border-slate-300 text-xs hover:bg-slate-50"
+                        <select
+                          value={user.role}
+                          onChange={(e) => void changeUserRole(user, e.target.value as "student" | "educator" | "admin")}
+                          className="px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
                         >
-                          Make {user.role === "admin" ? "Educator" : "Admin"}
-                        </button>
+                          <option value="student">Student</option>
+                          <option value="educator">Educator</option>
+                          <option value="admin">Admin</option>
+                        </select>
                         <button
                           onClick={() => void toggleUserActive(user)}
                           className="px-2.5 py-1.5 rounded border border-slate-300 text-xs hover:bg-slate-50"
