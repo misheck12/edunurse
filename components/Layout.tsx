@@ -42,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  const visibleSidebarItems = SIDEBAR_ITEMS;
+  const visibleSidebarItems = SIDEBAR_ITEMS.filter((item) => !item.comingSoon);
   const mobilePrimaryPaths = ['/', '/create', '/library', '/assignment-support', '/curriculum', '/settings'] as const;
   const mobileNavLabels: Record<string, string> = {
     '/': 'Studio',

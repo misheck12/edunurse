@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-137dedbd'], (function (workbox) { 'use strict';
+define(['./workbox-b79e8dca'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -82,20 +82,22 @@ define(['./workbox-137dedbd'], (function (workbox) { 'use strict';
     "revision": "d41d8cd98f00b204e9800998ecf8427e"
   }, {
     "url": "/index.html",
-    "revision": "0.oa9k293ubps"
+    "revision": "0.jsrpkddpb4o"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
     allowlist: [/^\/(?!api\/).*/],
     denylist: [/^\/api\//]
   }));
+  workbox.registerRoute(/^https?:\/\/[^/]+\/api\/v1\/exports\/.*/i, new workbox.NetworkOnly(), 'GET');
+  workbox.registerRoute(/^https?:\/\/[^/]+\/api\/v1\/chat$/i, new workbox.NetworkOnly(), 'GET');
   workbox.registerRoute(/^https?:\/\/[^/]+\/api\/v1\/.*/i, new workbox.NetworkFirst({
     "cacheName": "api-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 100,
       maxAgeSeconds: 86400
     }), new workbox.CacheableResponsePlugin({
-      statuses: [0, 200]
+      statuses: [200]
     })]
   }), 'GET');
   workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({

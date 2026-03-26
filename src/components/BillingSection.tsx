@@ -4,8 +4,25 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { CreditCard, TrendingUp, Calendar, Download, Sparkles } from "lucide-react";
-import { getAuthToken } from "../services/backendApi";
+import {
+  CreditCard,
+  TrendingUp,
+  Calendar,
+  Download,
+  Sparkles,
+  Gift,
+  Copy,
+  Check,
+  Users,
+  Wallet,
+  ExternalLink,
+} from "lucide-react";
+import {
+  getAuthToken,
+  getMyReferralCode,
+  getReferralEarnings,
+  ReferralEarningsData,
+} from "../services/backendApi";
 import { useUsage } from "../context/UsageContext";
 import { formatLimit, getProgressColor, getProgressPercentage } from "../types/subscription";
 
@@ -29,8 +46,16 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Affiliate state
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [earnings, setEarnings] = useState<ReferralEarningsData | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   useEffect(() => {
     fetchTransactions();
+    fetchReferralData();
   }, []);
 
   const fetchTransactions = async () => {
@@ -62,6 +87,36 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchReferralData = async () => {
+    try {
+      const [codeRes, earningsRes] = await Promise.all([
+        getMyReferralCode(),
+        getReferralEarnings(),
+      ]);
+      if (codeRes.success && codeRes.data) {
+        setReferralCode(codeRes.data.referralCode);
+        setShareUrl(codeRes.data.shareUrl);
+      }
+      if (earningsRes.success && earningsRes.data) {
+        setEarnings(earningsRes.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch referral data:", err);
+    }
+  };
+
+  const copyToClipboard = (text: string, type: "code" | "link") => {
+    navigator.clipboard.writeText(text).then(() => {
+      if (type === "code") {
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+      } else {
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      }
+    });
   };
 
   const getPlanBadgeColor = (planType: string) => {
@@ -308,6 +363,156 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Affiliate & Earnings ─────────────────────────────────── */}
+      <div className="mt-6 pt-6 border-t border-slate-200">
+        <div className="flex items-center gap-2 mb-4">
+          <Gift size={18} className="text-purple-600" />
+          <h3 className="text-lg font-semibold text-slate-900">
+            Affiliate & Earnings
+          </h3>
+        </div>
+
+        <p className="text-sm text-slate-600 mb-4">
+          Share your referral code with friends and earn{" "}
+          <span className="font-bold text-purple-700">
+            {earnings ? `${(earnings.commissionRate * 100).toFixed(0)}%` : "10%"} commission
+          </span>{" "}
+          on every payment they make!
+        </p>
+
+        {/* Referral Code + Share URL */}
+        <div className="grid sm:grid-cols-2 gap-3 mb-5">
+          {/* Code */}
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">
+              Your Referral Code
+            </span>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-lg font-bold text-purple-900 tracking-widest">
+                {referralCode || "—"}
+              </span>
+              {referralCode && (
+                <button
+                  onClick={() => copyToClipboard(referralCode, "code")}
+                  className="p-1.5 rounded-lg hover:bg-purple-200 transition text-purple-600"
+                  title="Copy code"
+                >
+                  {codeCopied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Share link */}
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">
+              Share Link
+            </span>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-sm text-purple-800 truncate max-w-[200px]">
+                {shareUrl || "—"}
+              </span>
+              {shareUrl && (
+                <button
+                  onClick={() => copyToClipboard(shareUrl, "link")}
+                  className="p-1.5 rounded-lg hover:bg-purple-200 transition text-purple-600"
+                  title="Copy link"
+                >
+                  {linkCopied ? <Check size={16} /> : <ExternalLink size={16} />}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Earnings Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+            <Wallet size={20} className="mx-auto text-green-600 mb-1" />
+            <div className="text-xl font-bold text-green-800">
+              K{((earnings?.totalEarnedCents ?? 0) / 100).toFixed(2)}
+            </div>
+            <span className="text-xs text-green-600 font-medium">
+              Total Earned
+            </span>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+            <TrendingUp size={20} className="mx-auto text-amber-600 mb-1" />
+            <div className="text-xl font-bold text-amber-800">
+              K{((earnings?.pendingCents ?? 0) / 100).toFixed(2)}
+            </div>
+            <span className="text-xs text-amber-600 font-medium">
+              Pending
+            </span>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <Users size={20} className="mx-auto text-blue-600 mb-1" />
+            <div className="text-xl font-bold text-blue-800">
+              {earnings?.referredUsersCount ?? 0}
+            </div>
+            <span className="text-xs text-blue-600 font-medium">
+              Referred Users
+            </span>
+          </div>
+        </div>
+
+        {/* Recent Referral Earnings */}
+        {earnings && earnings.referrals.length > 0 && (
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 mb-2">
+              Recent Referral Earnings
+            </h4>
+            <div className="space-y-2">
+              {earnings.referrals.slice(0, 5).map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">
+                      {r.referredName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(r.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-green-700">
+                      +K{(r.commissionCents / 100).toFixed(2)}
+                    </p>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        r.status === "earned"
+                          ? "bg-green-100 text-green-700"
+                          : r.status === "pending"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {r.status === "paid_out" ? "paid out" : r.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(!earnings || earnings.referrals.length === 0) && (
+          <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-200">
+            <Gift size={28} className="mx-auto text-slate-400 mb-2" />
+            <p className="text-sm text-slate-600 font-medium">
+              No referral earnings yet
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Share your code to start earning!
+            </p>
           </div>
         )}
       </div>

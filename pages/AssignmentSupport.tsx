@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Award,
@@ -18,6 +18,7 @@ import {
   Library,
   Lightbulb,
   Link2,
+  ListChecks,
   Loader2,
   MessageCircle,
   Mic,
@@ -35,6 +36,8 @@ import {
   Upload,
   XCircle,
   MessageSquare,
+  Hash,
+  type LucideIcon,
 } from "lucide-react";
 import SEO from "../src/components/SEO";
 import ChatPanel from "../components/ChatPanel";
@@ -43,7 +46,9 @@ import {
   AssignmentSupportMessage,
   AssignmentSupportMode,
   AssignmentSupportResponse,
+  AssignmentQuestion,
   CitationStyle,
+  PracticeQuestion,
   extractDocumentText,
   exportAssignmentDraft,
   getAssignmentSupport,
@@ -194,38 +199,55 @@ function summarizeAssistantResponse(response: AssignmentSupportResponse) {
   return response.coachingMessage;
 }
 
+function getLoadingMessage(mode: AssignmentSupportMode): string {
+  switch (mode) {
+    case "understand":
+      return "Your tutor is reading your brief and preparing a clear breakdown…";
+    case "practice":
+      return "Creating a personalised quiz to test your understanding…";
+    case "draft":
+      return "Writing your professional draft with academic citations…";
+    default:
+      return "Your tutor is working on it…";
+  }
+}
+
 function SectionList(props: {
   title: string;
   items: string[];
-  tone?: "blue" | "emerald" | "amber" | "slate";
+  icon?: LucideIcon;
+  tone?: "blue" | "emerald" | "amber" | "slate" | "purple";
 }) {
-  const { title, items, tone = "slate" } = props;
+  const { title, items, icon: Icon, tone = "slate" } = props;
   if (items.length === 0) return null;
 
-  const toneClass =
-    tone === "blue"
-      ? "bg-blue-50 text-blue-700"
-      : tone === "emerald"
-        ? "bg-emerald-50 text-emerald-700"
-        : tone === "amber"
-          ? "bg-amber-50 text-amber-700"
-          : "bg-slate-100 text-slate-700";
+  const styles = {
+    blue:    { bg: "bg-blue-50",    text: "text-blue-700",    dot: "bg-blue-400",    header: "text-blue-600" },
+    emerald: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-400", header: "text-emerald-600" },
+    amber:   { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-400",   header: "text-amber-600" },
+    slate:   { bg: "bg-slate-50",   text: "text-slate-700",   dot: "bg-slate-400",   header: "text-slate-600" },
+    purple:  { bg: "bg-purple-50",  text: "text-purple-700",  dot: "bg-purple-400",  header: "text-purple-600" },
+  };
+
+  const s = styles[tone];
 
   return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className={`rounded-lg border border-slate-100 ${s.bg} p-3`}>
+      <p className={`mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide ${s.header}`}>
+        {Icon && <Icon size={12} />}
         {title}
       </p>
-      <div className="space-y-2">
+      <ul className="space-y-1.5">
         {items.map((item, index) => (
-          <div
+          <li
             key={`${title}-${index}`}
-            className={`rounded-lg px-3 py-2 text-sm ${toneClass}`}
+            className={`flex items-start gap-2 text-xs leading-relaxed ${s.text}`}
           >
-            {item}
-          </div>
+            <span className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${s.dot}`} />
+            <span>{item}</span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -279,6 +301,28 @@ const AssignmentSupport: React.FC = () => {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  // Practice quiz state
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizChecked, setQuizChecked] = useState<Record<string, boolean>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizDismissed, setQuizDismissed] = useState(false);
+  const [quizGrading, setQuizGrading] = useState(false);
+  const [activeQuizQuestions, setActiveQuizQuestions] = useState<PracticeQuestion[]>([]);
+  const [quizFeedback, setQuizFeedback] = useState<Record<string, { isCorrect: boolean; feedback: string }>>({});
+
+  // Multi-question navigator state
+  const [focusQuestionId, setFocusQuestionId] = useState<string | null>(null);
+
+  // Pending auto-teach flag — set by file upload, consumed by effect
+  const [pendingAutoTeach, setPendingAutoTeach] = useState(false);
+
+  // Auto-advance flags for the automatic pipeline
+  const [pendingAutoPractice, setPendingAutoPractice] = useState(false);
+  const [pendingAutoDraft, setPendingAutoDraft] = useState(false);
+
+  // Tutor guidance collapsible state
+  const [showDeepLearning, setShowDeepLearning] = useState(false);
+
   // Check for voice support
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -286,6 +330,44 @@ const AssignmentSupport: React.FC = () => {
       setVoiceSupported(Boolean(SpeechRecognition));
     }
   }, []);
+
+  // Auto-teach after file upload — fires after state has committed
+  useEffect(() => {
+    if (pendingAutoTeach && assignmentInstructions.trim().length >= 10 && !loading) {
+      setPendingAutoTeach(false);
+      void sendSupportRequest(
+        "understand",
+        "I just uploaded my assignment. Please read through it, identify all the key topics I need to understand, and explain what the question is really asking me to do."
+      );
+    }
+  }, [pendingAutoTeach, assignmentInstructions, loading]);
+
+  // Auto-advance: understand → practice (quiz the student after teaching)
+  useEffect(() => {
+    if (pendingAutoPractice && !loading) {
+      setPendingAutoPractice(false);
+      setNotice("📝 Starting your knowledge check…");
+      void sendSupportRequest(
+        "practice",
+        "Now test my understanding with a quiz. Generate a mix of multiple-choice and short-answer questions based on the topics you just taught me."
+      );
+    }
+  }, [pendingAutoPractice, loading]);
+
+  // Auto-advance: practice grading → draft (generate assignment after good quiz)
+  useEffect(() => {
+    if (pendingAutoDraft && !loading) {
+      setPendingAutoDraft(false);
+      setQuizDismissed(true);
+      setNotice("✨ Great quiz results! Generating your assignment draft…");
+      void sendSupportRequest(
+        "draft",
+        `Generate a professional assignment draft based on my demonstrated understanding from the quiz.${
+          references.length > 0 ? ` Use my ${references.length} references.` : ""
+        } Cite in ${citationStyle || "APA"} format.`
+      );
+    }
+  }, [pendingAutoDraft, loading]);
 
   // Load sessions from storage
   useEffect(() => {
@@ -325,6 +407,8 @@ const AssignmentSupport: React.FC = () => {
     setDueDate(session.dueDate);
     setUnderstandingScore(session.understandingScore);
     setReferences(session.references || []);
+    setFocusQuestionId(null);
+    resetQuiz();
   }, [hydrated, activeSessionId, sessions]);
 
   // Save current session
@@ -379,6 +463,86 @@ const AssignmentSupport: React.FC = () => {
   const canSubmit = assignmentInstructions.trim().length >= 10 && !loading;
   const canGenerateProfessional = estimatedReadiness >= 50;
   const hasReferences = references.length > 0;
+  const hasDraft = Boolean(latestTurn?.response.draftResponse?.trim());
+  const isDraftGenerating = loading && (mode === "draft" || pendingAutoDraft);
+
+  // Practice quiz helpers — use saved questions so they persist during AI grading
+  const practiceQuestions: PracticeQuestion[] = activeQuizQuestions.length > 0
+    ? activeQuizQuestions
+    : (latestTurn?.response.practiceQuestions ?? []);
+  const hasPracticeQuiz = practiceQuestions.length > 0 && !quizDismissed;
+
+  // Multi-question detection helpers
+  const assignmentQuestions: AssignmentQuestion[] = latestTurn?.response.assignmentQuestions ?? [];
+  const hasMultipleQuestions = assignmentQuestions.length > 1;
+  const focusedQuestion = assignmentQuestions.find((q) => q.id === focusQuestionId) ?? null;
+
+  // Topic coverage tracking
+  const topicsCovered = latestTurn?.response.topicsCovered ?? [];
+  const hasTopics = topicsCovered.length > 0;
+  const coveredCount = topicsCovered.filter((t) => t.status === "covered").length;
+  const inProgressCount = topicsCovered.filter((t) => t.status === "in_progress").length;
+  const avgConfidence = topicsCovered.length > 0
+    ? Math.round(topicsCovered.reduce((sum, t) => sum + t.confidence, 0) / topicsCovered.length)
+    : 0;
+
+  const quizScore = useMemo(() => {
+    if (!quizSubmitted || practiceQuestions.length === 0) return null;
+    let correct = 0;
+    for (const q of practiceQuestions) {
+      if (q.type === "mcq") {
+        if ((quizAnswers[q.id] ?? "").toUpperCase() === q.correctAnswer.toUpperCase()) correct++;
+      } else {
+        // Short answer: use AI grading result
+        if (quizFeedback[q.id]?.isCorrect) correct++;
+      }
+    }
+    return { correct, total: practiceQuestions.length, pct: Math.round((correct / practiceQuestions.length) * 100) };
+  }, [quizSubmitted, practiceQuestions, quizAnswers, quizFeedback]);
+
+  const handleQuizSubmit = () => {
+    // Auto-check MCQs locally for immediate visual feedback
+    const checked: Record<string, boolean> = { ...quizChecked };
+    for (const q of practiceQuestions) {
+      if (q.type === "mcq") {
+        checked[q.id] = (quizAnswers[q.id] ?? "").toUpperCase() === q.correctAnswer.toUpperCase();
+      }
+    }
+    setQuizChecked(checked);
+    setQuizSubmitted(true);
+
+    // Build quiz answers summary for AI grading
+    const answersSummary = practiceQuestions.map((q, i) => {
+      const answer = quizAnswers[q.id] ?? "(no answer)";
+      if (q.type === "mcq") {
+        return `Q${i + 1} [MCQ, id=${q.id}] "${q.question}" → My answer: ${answer}`;
+      }
+      return `Q${i + 1} [Short Answer, id=${q.id}] "${q.question}" → My answer: "${answer}"`;
+    }).join("\n");
+
+    // Send to AI for comprehensive grading (especially short answers)
+    setQuizGrading(true);
+    void sendSupportRequest(
+      "practice",
+      `Please grade my quiz answers and update my readiness score:\n\n${answersSummary}\n\nEvaluate each answer — for short answers assess if I demonstrated understanding. Return quizResults for each question with feedback.`
+    );
+  };
+
+  const resetQuiz = () => {
+    setQuizAnswers({});
+    setQuizChecked({});
+    setQuizSubmitted(false);
+    setQuizDismissed(false);
+    setQuizGrading(false);
+    setQuizFeedback({});
+  };
+
+  const dismissQuiz = () => {
+    setQuizDismissed(true);
+    setActiveQuizQuestions([]);
+    setQuizFeedback({});
+    setMode(estimatedReadiness >= 50 ? "draft" : "understand");
+  };
 
   const sendSupportRequest = async (
     selectedMode: AssignmentSupportMode,
@@ -446,6 +610,8 @@ const AssignmentSupport: React.FC = () => {
         understandingScore: estimatedReadiness,
         // Student-provided references
         references: referencesForApi.length > 0 ? referencesForApi : undefined,
+        // Multi-question focus
+        focusQuestionId: focusQuestionId ?? undefined,
       });
 
       const assistantEntry = createMessage(
@@ -466,22 +632,68 @@ const AssignmentSupport: React.FC = () => {
       ]);
       setMode(response.suggestedMode);
       setUnderstandingScore(response.estimatedReadiness);
+
+      // Save quiz questions when new practice questions arrive
+      if (selectedMode === "practice" && (response.practiceQuestions?.length ?? 0) > 0) {
+        setActiveQuizQuestions(response.practiceQuestions);
+        resetQuiz();
+      }
+
+      // Process quiz grading results from AI
+      if ((response.quizResults?.length ?? 0) > 0) {
+        const fb: Record<string, { isCorrect: boolean; feedback: string }> = {};
+        const chk: Record<string, boolean> = {};
+        for (const r of response.quizResults) {
+          fb[r.questionId] = { isCorrect: r.isCorrect, feedback: r.feedback };
+          chk[r.questionId] = r.isCorrect;
+        }
+        setQuizFeedback(fb);
+        // Merge AI grading with existing MCQ checks
+        setQuizChecked((prev) => ({ ...prev, ...chk }));
+        setQuizGrading(false);
+      }
+
+      // Auto-advance: understand → practice (quiz the student after teaching)
+      if (selectedMode === "understand" && response.estimatedReadiness >= 25) {
+        setPendingAutoPractice(true);
+      }
+
+      // Auto-advance: practice grading → draft (generate assignment after good quiz)
+      if (
+        selectedMode === "practice" &&
+        response.estimatedReadiness >= 50 &&
+        response.suggestedMode === "draft" &&
+        (response.practiceQuestions?.length ?? 0) === 0
+      ) {
+        setPendingAutoDraft(true);
+      }
       
-      // More informative notices based on readiness
+      // More informative notices based on the automatic pipeline
       if (response.estimatedReadiness >= 50 && selectedMode === "draft") {
         setNotice(
           `🎉 Professional assignment generated! Your understanding is at ${response.estimatedReadiness}%. ` +
           "Review the draft, add your personal insights, and customize before submission."
         );
-      } else if (response.readyForDraft) {
+      } else if (selectedMode === "understand" && response.estimatedReadiness >= 25) {
         setNotice(
-          `Great progress! Your understanding is at ${response.estimatedReadiness}%. ` +
-          `${response.estimatedReadiness >= 50 ? "You can now generate a professional draft!" : "Keep practicing to unlock professional draft generation at 50%."}`
+          `📚 Understanding at ${response.estimatedReadiness}%. Moving to knowledge check…`
+        );
+      } else if (selectedMode === "practice" && (response.quizResults?.length ?? 0) > 0 && response.estimatedReadiness >= 50) {
+        setNotice(
+          `🎉 Quiz complete! Score ready. Understanding at ${response.estimatedReadiness}%. Generating your draft…`
+        );
+      } else if (selectedMode === "practice" && (response.quizResults?.length ?? 0) > 0) {
+        setNotice(
+          `Quiz graded! Understanding at ${response.estimatedReadiness}%. ` +
+          `${response.estimatedReadiness < 50 ? "Let's try more questions to build your understanding." : ""}`
+        );
+      } else if (selectedMode === "practice" && (response.practiceQuestions?.length ?? 0) > 0) {
+        setNotice(
+          `📝 Quiz ready! Answer the questions below. Your answers will be graded automatically.`
         );
       } else {
         setNotice(
           `Understanding: ${response.estimatedReadiness}%. ` +
-          `${response.estimatedReadiness < 50 ? `Need ${50 - response.estimatedReadiness}% more to unlock professional draft. ` : ""}` +
           `Next step: ${formatModeLabel(response.suggestedMode)}.`
         );
       }
@@ -514,6 +726,11 @@ const AssignmentSupport: React.FC = () => {
     setDueDate("");
     setUnderstandingScore(0);
     setReferences([]);
+    resetQuiz();
+    setActiveQuizQuestions([]);
+    setFocusQuestionId(null);
+    setPendingAutoPractice(false);
+    setPendingAutoDraft(false);
     setError(null);
     setNotice("Assignment support session cleared. Start fresh!");
   };
@@ -572,13 +789,17 @@ const AssignmentSupport: React.FC = () => {
     try {
       const result = await extractDocumentText(file);
       setAssignmentInstructions(result.text);
-      setNotice(`Document uploaded successfully! Extracted ${result.characterCount.toLocaleString()} characters.`);
+      setNotice(`Document uploaded! Starting your tutor session…`);
       
       // Try to extract title from filename
       if (!assignmentTitle) {
         const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
         setAssignmentTitle(nameWithoutExt);
       }
+
+      // Auto-trigger teaching — flag will be consumed by the useEffect
+      // once React has committed the assignmentInstructions state update
+      setPendingAutoTeach(true);
     } catch (uploadError) {
       setError(
         uploadError instanceof Error 
@@ -727,46 +948,15 @@ const AssignmentSupport: React.FC = () => {
     }
   };
 
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
       <SEO
         title="Assignment Support"
-        description="Share an assignment brief, learn it step by step with AI guidance, and build a final assignment draft with confidence."
+        description="Share an assignment brief, learn it step by step with guided teaching, and build a final assignment draft with confidence."
         canonicalPath="/assignment-support"
       />
 
-      {/* View Switcher */}
-      <div className="mb-6 flex items-center gap-2">
-        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
-          <button
-            onClick={() => setView("support")}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-              view === "support"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <GraduationCap size={16} />
-            Assignment Support
-          </button>
-          <button
-            onClick={() => setView("chat")}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-              view === "chat"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <MessageSquare size={16} />
-            AI Assistant
-          </button>
-        </div>
-      </div>
-
-      {view === "chat" ? (
-        <ChatPanel context="general" />
-      ) : (
-      <>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -776,981 +966,1434 @@ const AssignmentSupport: React.FC = () => {
         className="hidden"
       />
 
-      {/* Academic Integrity Panel */}
-      {showIntegrityPanel && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
-          <div className="flex items-start gap-3">
-            <Shield className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-amber-800">How This Tool Works</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowIntegrityPanel(false)}
-                  className="text-amber-600 hover:text-amber-800"
-                >
-                  <XCircle size={18} />
-                </button>
-              </div>
-              <p className="mt-1 text-sm text-amber-700">
-                <strong>Step 1:</strong> Prove you understand the assignment through guided questions. 
-                <strong> Step 2:</strong> Add your research sources and references. 
-                <strong> Step 3:</strong> Once you reach <span className="font-bold">50% understanding</span>, the tool will generate a professional assignment incorporating your sources.
-                Your references will be properly cited in your chosen citation style.
-              </p>
+      {/* ── Compact Header ── */}
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-50 p-2">
+              <GraduationCap size={20} className="text-blue-600" />
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Progress Tracker - Enhanced */}
-      <div className="mb-6 rounded-xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-4 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              {/* Step 1: Understand */}
-              <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                mode === "understand" 
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200" 
-                  : estimatedReadiness >= 30 
-                    ? "bg-green-100 text-green-700" 
-                    : "bg-slate-100 text-slate-500"
-              }`}>
-                {estimatedReadiness >= 30 ? <CheckCircle2 size={14} /> : <BookOpen size={14} />}
-                <span>1. Understand</span>
-              </div>
-              <ChevronRight size={16} className="text-slate-300" />
-              
-              {/* Step 2: Practice */}
-              <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                mode === "practice" 
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200" 
-                  : estimatedReadiness >= 50 
-                    ? "bg-green-100 text-green-700" 
-                    : "bg-slate-100 text-slate-500"
-              }`}>
-                {estimatedReadiness >= 50 ? <CheckCircle2 size={14} /> : <ClipboardCheck size={14} />}
-                <span>2. Practice</span>
-              </div>
-              <ChevronRight size={16} className="text-slate-300" />
-              
-              {/* Step 3: Draft - Unlocked at 50% */}
-              <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                mode === "draft" 
-                  ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-purple-200" 
-                  : estimatedReadiness >= 50 
-                    ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700" 
-                    : "bg-slate-100 text-slate-400"
-              }`}>
-                {estimatedReadiness >= 50 ? (
-                  <>
-                    <Sparkles size={14} />
-                    <span>3. Professional Draft</span>
-                    <Award size={14} />
-                  </>
-                ) : (
-                  <>
-                    <PenSquare size={14} />
-                    <span>3. Draft (50% to unlock)</span>
-                  </>
-                )}
-              </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900">Assignment Support</h1>
+              <p className="text-xs text-slate-500">Upload → Learn → Quiz → Assignment — fully automated</p>
             </div>
           </div>
 
-          {/* Understanding Score - Enhanced */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Target size={16} className={estimatedReadiness >= 50 ? "text-green-500" : "text-slate-400"} />
-              <span className="text-sm text-slate-600">Understanding:</span>
-              <div className="h-3 w-32 overflow-hidden rounded-full bg-slate-200">
-                <div 
-                  className={`h-full transition-all duration-500 ${
-                    estimatedReadiness >= 50 ? "bg-gradient-to-r from-green-500 to-emerald-500" : 
-                    estimatedReadiness >= 30 ? "bg-amber-500" : "bg-red-400"
-                  }`}
-                  style={{ width: `${estimatedReadiness}%` }}
-                />
-                {/* 50% marker */}
-                <div className="relative">
-                  <div className="absolute -top-3 left-1/2 h-3 w-0.5 bg-slate-400" style={{ left: '50%' }} />
-                </div>
-              </div>
-              <span className={`text-sm font-bold ${estimatedReadiness >= 50 ? "text-green-600" : "text-slate-700"}`}>
-                {estimatedReadiness}%
-              </span>
-              {estimatedReadiness >= 50 && (
-                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
-                  Draft Unlocked!
-                </span>
-              )}
+          <div className="flex items-center gap-2">
+            {/* View switcher */}
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+              <button
+                onClick={() => setView("support")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  view === "support"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <GraduationCap size={13} />
+                Support
+              </button>
+              <button
+                onClick={() => setView("chat")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  view === "chat"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <MessageSquare size={13} />
+                Chat
+              </button>
             </div>
 
-            {/* Session Manager Button */}
+            {/* Sessions */}
             <button
               type="button"
               onClick={() => setShowSessionManager(!showSessionManager)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
             >
-              <FileText size={14} />
-              Sessions ({sessions.length})
-              <ChevronDown size={14} className={`transition-transform ${showSessionManager ? "rotate-180" : ""}`} />
+              <FileText size={13} />
+              {sessions.length}
+              <ChevronDown size={12} className={`transition-transform ${showSessionManager ? "rotate-180" : ""}`} />
             </button>
+          </div>
+        </div>
+
+        {/* Progress Row */}
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+          {/* Steps */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${
+              mode === "understand" ? "bg-blue-600 text-white" : estimatedReadiness >= 30 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+            }`}>
+              {estimatedReadiness >= 30 ? <CheckCircle2 size={11} /> : <BookOpen size={11} />}
+              Understand
+            </span>
+            <ChevronRight size={12} className="text-slate-300" />
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${
+              mode === "practice" ? "bg-blue-600 text-white" : estimatedReadiness >= 50 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+            }`}>
+              {estimatedReadiness >= 50 ? <CheckCircle2 size={11} /> : <ClipboardCheck size={11} />}
+              Practice
+            </span>
+            <ChevronRight size={12} className="text-slate-300" />
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${
+              mode === "draft"
+                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                : estimatedReadiness >= 50
+                  ? "bg-green-100 text-green-700"
+                  : "bg-slate-100 text-slate-400"
+            }`}>
+              {estimatedReadiness >= 50 ? <Sparkles size={11} /> : <PenSquare size={11} />}
+              Draft
+            </span>
+          </div>
+
+          {/* Understanding bar */}
+          <div className="flex flex-1 items-center gap-2">
+            <Target size={14} className={estimatedReadiness >= 50 ? "text-green-500" : "text-slate-400"} />
+            <div className="relative h-2 min-w-[80px] max-w-[200px] flex-1 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  estimatedReadiness >= 50 ? "bg-gradient-to-r from-green-500 to-emerald-500" : estimatedReadiness >= 30 ? "bg-amber-500" : "bg-red-400"
+                }`}
+                style={{ width: `${estimatedReadiness}%` }}
+              />
+            </div>
+            <span className={`text-xs font-bold ${estimatedReadiness >= 50 ? "text-green-600" : "text-slate-600"}`}>
+              {estimatedReadiness}%
+            </span>
+            {estimatedReadiness >= 50 && (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                Draft Ready!
+              </span>
+            )}
           </div>
         </div>
 
         {/* Session Manager Dropdown */}
         {showSessionManager && (
-          <div className="mt-4 border-t border-slate-200 pt-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={createNewSession}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-              >
-                <RefreshCw size={14} />
-                New Session
-              </button>
-              {sessions.map((session) => (
-                <div key={session.id} className="flex items-center gap-1">
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <button
+              type="button"
+              onClick={createNewSession}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              <RefreshCw size={12} />
+              New
+            </button>
+            {sessions.map((session) => (
+              <div key={session.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => switchSession(session.id)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+                    session.id === activeSessionId
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {session.name || "Untitled"}
+                </button>
+                {sessions.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => switchSession(session.id)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                      session.id === activeSessionId
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
+                    onClick={() => deleteSession(session.id)}
+                    className="rounded p-0.5 text-slate-400 hover:text-red-500"
+                    title="Delete session"
                   >
-                    {session.name || "Untitled"}
+                    <Trash2 size={11} />
                   </button>
-                  {sessions.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => deleteSession(session.id)}
-                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                      title="Delete session"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Header with main actions */}
-      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              <BrainCircuit size={14} />
-              Assignment Support
+      {view === "chat" ? (
+        <ChatPanel context="general" />
+      ) : (
+      <>
+        {/* How it works — compact tip */}
+        {showIntegrityPanel && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 px-4 py-3">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+              <Shield size={14} className="text-blue-500" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900">
-              Learn it first, then write it well
-            </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              This tutor helps you <strong>understand</strong> your assignment before writing.
-              Work through each step to build genuine comprehension, then get help structuring your own ideas.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void sendSupportRequest("understand", "Explain this assignment in simpler words and break down what it is asking me to do.")}
-              disabled={!canSubmit}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              <BookOpen size={15} />
-              Explain It
-            </button>
-            <button
-              type="button"
-              onClick={() => void sendSupportRequest("practice", "Coach me with questions so I can prove I understand before we draft.")}
-              disabled={!canSubmit}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              <ClipboardCheck size={15} />
-              Quiz Me
-            </button>
-            <button
-              type="button"
-              onClick={() => void sendSupportRequest("draft", `Create a professional assignment draft using my understanding and ${references.length > 0 ? `the ${references.length} references I provided` : "academic sources"}. Properly cite all sources in ${citationStyle || "APA"} format.`)}
-              disabled={!canSubmit || estimatedReadiness < 50}
-              title={estimatedReadiness < 50 ? `Need 50% understanding (currently ${estimatedReadiness}%)` : "Generate professional assignment with citations"}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60 ${
-                estimatedReadiness >= 50
-                  ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-200 hover:from-purple-700 hover:to-blue-700"
-                  : "bg-slate-300 text-slate-500"
-              }`}
-            >
-              {estimatedReadiness >= 50 ? (
-                <>
-                  <Sparkles size={15} />
-                  Generate Professional Draft
-                  {references.length > 0 && <span className="rounded bg-white/20 px-1.5 py-0.5 text-xs">{references.length} refs</span>}
-                </>
-              ) : (
-                <>
-                  <PenSquare size={15} />
-                  Draft (Need {50 - estimatedReadiness}% more)
-                </>
-              )}
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-blue-800">How it works</p>
+              <p className="text-[11px] text-blue-600/80">
+                Upload your assignment → Topics are explained → <strong>Quiz</strong> tests your understanding → Answers are marked → <strong>Draft</strong> is generated automatically
+              </p>
+            </div>
+            <button type="button" onClick={() => setShowIntegrityPanel(false)} className="rounded-lg p-1 text-blue-300 hover:bg-blue-100 hover:text-blue-500">
+              <XCircle size={15} />
             </button>
           </div>
-        </div>
-      </div>
+        )}
 
-      {(error || notice) && (
-        <div className="mb-6 space-y-3">
-          {error && (
-            <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-          {notice && (
-            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{notice}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Assignment Brief
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Share the task exactly as your lecturer gave it.
-                </p>
+        {/* Error & Notice */}
+        {(error || notice) && (
+          <div className="mb-4 space-y-2">
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
+            )}
+            {notice && (
+              <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                <Lightbulb className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                <span>{notice}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── HERO: Assignment Brief ── */}
+        <section className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <label className="text-sm font-semibold text-slate-800">
+              Your Assignment Brief <span className="text-red-400">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                Upload PDF / DOCX
+              </button>
+              <button
+                type="button"
+                onClick={clearSession}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                <RotateCcw size={12} />
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            value={assignmentInstructions}
+            onChange={(e) => setAssignmentInstructions(e.target.value)}
+            rows={6}
+            placeholder="Paste the full assignment question, marking guide, or lecturer instructions here…"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-relaxed placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+
+          {/* Compact optional field row — always visible, lightweight */}
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              value={assignmentTitle}
+              onChange={(e) => setAssignmentTitle(e.target.value)}
+              placeholder="Title (optional)"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+            />
+            <input
+              value={course}
+              onChange={(e) => setCourse(e.target.value)}
+              placeholder="Course / Module (optional)"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+            />
+            <input
+              value={programme}
+              onChange={(e) => setProgramme(e.target.value)}
+              placeholder="Programme (optional)"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+            />
+          </div>
+        </section>
+
+        {/* ── Collapsible Sections ── */}
+        <div className="mb-4 space-y-2">
+          {/* References & Sources */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setShowReferencesPanel(!showReferencesPanel)}
+              className="flex w-full items-center justify-between px-4 py-3"
+            >
               <div className="flex items-center gap-2">
+                <Library size={15} className="text-purple-500" />
+                <span className="text-sm font-medium text-slate-700">Your References &amp; Sources</span>
+                {references.length > 0 && (
+                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
+                    {references.length}
+                  </span>
+                )}
+              </div>
+              <ChevronDown size={15} className={`text-slate-400 transition-transform ${showReferencesPanel ? "rotate-180" : ""}`} />
+            </button>
+
+            {showReferencesPanel && (
+              <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                {/* Add reference form — compact grid */}
+                <div className="mb-3 rounded-lg border border-purple-100 bg-purple-50/40 p-3">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <select
+                      value={newReference.type}
+                      onChange={(e) => setNewReference({...newReference, type: e.target.value as Reference["type"]})}
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                    >
+                      <option value="book">📚 Book</option>
+                      <option value="journal">📄 Journal</option>
+                      <option value="website">🌐 Website</option>
+                      <option value="other">📁 Other</option>
+                    </select>
+                    <input
+                      value={newReference.year}
+                      onChange={(e) => setNewReference({...newReference, year: e.target.value})}
+                      placeholder="Year"
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                    />
+                    <input
+                      value={newReference.title}
+                      onChange={(e) => setNewReference({...newReference, title: e.target.value})}
+                      placeholder="Title *"
+                      className="col-span-2 rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <input
+                      value={newReference.authors}
+                      onChange={(e) => setNewReference({...newReference, authors: e.target.value})}
+                      placeholder="Authors (e.g. Smith, J.) *"
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                    />
+                    <input
+                      value={newReference.source}
+                      onChange={(e) => setNewReference({...newReference, source: e.target.value})}
+                      placeholder="Publisher / Journal"
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+                  {newReference.type === "website" && (
+                    <input
+                      value={newReference.url || ""}
+                      onChange={(e) => setNewReference({...newReference, url: e.target.value})}
+                      placeholder="URL"
+                      className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                    />
+                  )}
+                  <textarea
+                    value={newReference.notes || ""}
+                    onChange={(e) => setNewReference({...newReference, notes: e.target.value})}
+                    placeholder="Key points to use from this source…"
+                    rows={2}
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={addReference}
+                    disabled={!newReference.title?.trim() || !newReference.authors?.trim()}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    <BookMarked size={12} />
+                    Add Reference
+                  </button>
+                </div>
+
+                {/* Reference list */}
+                {references.length > 0 ? (
+                  <div className="space-y-2">
+                    {references.map((ref) => (
+                      <div key={ref.id} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                        <div className="flex-1 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span>
+                              {ref.type === "book" && "📚"}
+                              {ref.type === "journal" && "📄"}
+                              {ref.type === "website" && "🌐"}
+                              {ref.type === "other" && "📁"}
+                            </span>
+                            <span className="font-semibold text-slate-800">{ref.title}</span>
+                            <span className="text-slate-400">({ref.year})</span>
+                          </div>
+                          <div className="text-slate-500">
+                            {ref.authors}
+                            {ref.source && ` — ${ref.source}`}
+                          </div>
+                          {ref.url && (
+                            <a href={ref.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-500 hover:underline">
+                              <Link2 size={9} />
+                              {ref.url.slice(0, 50)}
+                            </a>
+                          )}
+                          {ref.notes && (
+                            <div className="mt-1 italic text-slate-500">&quot;{ref.notes}&quot;</div>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => removeReference(ref.id)} className="rounded p-1 text-slate-400 hover:text-red-500">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-3 text-center text-xs text-slate-400">
+                    No references yet. Add your sources to get properly cited content.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* More Options */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className="flex w-full items-center justify-between px-4 py-3"
+            >
+              <div className="flex items-center gap-2">
+                <GraduationCap size={15} className="text-slate-500" />
+                <span className="text-sm font-medium text-slate-700">More Options</span>
+                <span className="text-[10px] text-slate-400">(goal, attempt, word count, rubric…)</span>
+              </div>
+              <ChevronDown size={15} className={`text-slate-400 transition-transform ${showAdvancedOptions ? "rotate-180" : ""}`} />
+            </button>
+
+            {showAdvancedOptions && (
+              <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+                <input
+                  value={studentGoal}
+                  onChange={(e) => setStudentGoal(e.target.value)}
+                  placeholder="What do you want help with most? (e.g. structuring my argument)"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                />
+                <textarea
+                  value={currentAttempt}
+                  onChange={(e) => setCurrentAttempt(e.target.value)}
+                  rows={3}
+                  placeholder="Your current attempt or rough draft (optional)…"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                />
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <input
+                    type="number"
+                    value={wordCount ?? ""}
+                    onChange={(e) => setWordCount(e.target.value ? parseInt(e.target.value, 10) : null)}
+                    placeholder="Word count"
+                    min={100}
+                    max={20000}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none"
+                  />
+                  <select
+                    value={citationStyle ?? ""}
+                    onChange={(e) => setCitationStyle(e.target.value as CitationStyle || null)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none"
+                  >
+                    <option value="">Citation style</option>
+                    {CITATION_STYLES.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={12} className="flex-shrink-0 text-slate-400" />
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <textarea
+                  value={markingCriteria}
+                  onChange={(e) => setMarkingCriteria(e.target.value)}
+                  rows={2}
+                  placeholder="Marking rubric / grading criteria (optional)"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none"
+                />
+                <textarea
+                  value={lecturerFeedback}
+                  onChange={(e) => setLecturerFeedback(e.target.value)}
+                  rows={2}
+                  placeholder="Previous lecturer feedback to address (optional)"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Action Steps ── */}
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {/* Step 1: Understand */}
+          <button
+            type="button"
+            onClick={() => void sendSupportRequest("understand", focusedQuestion
+              ? `Explain question ${focusedQuestion.questionNumber}: "${focusedQuestion.questionText}" in simpler words and break down what it is asking me to do.`
+              : "Explain this assignment in simpler words and break down what it is asking me to do."
+            )}
+            disabled={!canSubmit || loading}
+            className={`group relative rounded-2xl border-2 p-4 text-left transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
+              estimatedReadiness >= 30
+                ? "border-green-200 bg-green-50/40 hover:border-green-300"
+                : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20"
+            }`}
+          >
+            {estimatedReadiness >= 30 && (
+              <CheckCircle2 size={15} className="absolute right-3 top-3 text-green-500" />
+            )}
+            <div className={`mb-2.5 inline-flex rounded-xl p-2.5 ${estimatedReadiness >= 30 ? "bg-green-100" : "bg-blue-50 group-hover:bg-blue-100"}`}>
+              {loading && mode === "understand"
+                ? <Loader2 size={20} className="animate-spin text-blue-600" />
+                : <BookOpen size={20} className={estimatedReadiness >= 30 ? "text-green-600" : "text-blue-500"} />
+              }
+            </div>
+            <p className="text-sm font-bold text-slate-800">1. Explain It</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Break down what the question is really asking</p>
+            {focusedQuestion && (
+              <p className="mt-2 truncate rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-600">
+                → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
+              </p>
+            )}
+          </button>
+
+          {/* Step 2: Practice */}
+          <button
+            type="button"
+            onClick={() => void sendSupportRequest("practice", focusedQuestion
+              ? `Coach me with questions about question ${focusedQuestion.questionNumber}: "${focusedQuestion.questionText}" so I can prove I understand it.`
+              : "Coach me with questions so I can prove I understand before we draft."
+            )}
+            disabled={!canSubmit || loading}
+            className={`group relative rounded-2xl border-2 p-4 text-left transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
+              estimatedReadiness >= 50
+                ? "border-green-200 bg-green-50/40 hover:border-green-300"
+                : "border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/20"
+            }`}
+          >
+            {estimatedReadiness >= 50 && (
+              <CheckCircle2 size={15} className="absolute right-3 top-3 text-green-500" />
+            )}
+            <div className={`mb-2.5 inline-flex rounded-xl p-2.5 ${estimatedReadiness >= 50 ? "bg-green-100" : "bg-amber-50 group-hover:bg-amber-100"}`}>
+              {loading && mode === "practice"
+                ? <Loader2 size={20} className="animate-spin text-amber-600" />
+                : <ClipboardCheck size={20} className={estimatedReadiness >= 50 ? "text-green-600" : "text-amber-500"} />
+              }
+            </div>
+            <p className="text-sm font-bold text-slate-800">2. Quiz Me</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Test understanding with MCQ &amp; short-answer questions</p>
+            {focusedQuestion && (
+              <p className="mt-2 truncate rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-600">
+                → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
+              </p>
+            )}
+          </button>
+
+          {/* Step 3: Draft */}
+          <button
+            type="button"
+            onClick={() => void sendSupportRequest("draft", focusedQuestion
+              ? `Create a professional draft for question ${focusedQuestion.questionNumber}: "${focusedQuestion.questionText}" using my understanding and ${references.length > 0 ? `the ${references.length} references I provided` : "academic sources"}. Properly cite all sources in ${citationStyle || "APA"} format.`
+              : `Create a professional assignment draft using my understanding and ${references.length > 0 ? `the ${references.length} references I provided` : "academic sources"}. Properly cite all sources in ${citationStyle || "APA"} format.`
+            )}
+            disabled={!canSubmit || loading || estimatedReadiness < 50}
+            title={estimatedReadiness < 50 ? `Unlock at 50% understanding (currently ${estimatedReadiness}%)` : "Generate professional draft with citations"}
+            className={`group relative rounded-2xl border-2 p-4 text-left transition-all disabled:cursor-not-allowed ${
+              estimatedReadiness >= 50
+                ? "border-purple-200 bg-gradient-to-br from-purple-50/60 to-blue-50/60 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100 disabled:opacity-60"
+                : "border-dashed border-slate-300 bg-slate-50/50 opacity-75"
+            }`}
+          >
+            <div className={`mb-2.5 inline-flex rounded-xl p-2.5 ${estimatedReadiness >= 50 ? "bg-purple-100" : "bg-slate-100"}`}>
+              {loading && mode === "draft"
+                ? <Loader2 size={20} className="animate-spin text-purple-600" />
+                : estimatedReadiness >= 50
+                  ? <Sparkles size={20} className="text-purple-600" />
+                  : <PenSquare size={20} className="text-slate-400" />
+              }
+            </div>
+            <p className="text-sm font-bold text-slate-800">3. Generate Draft</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+              {estimatedReadiness >= 50
+                ? `Professional assignment${references.length > 0 ? ` citing ${references.length} sources` : " with proper citations"}`
+                : `Locked — need ${50 - estimatedReadiness}% more understanding`
+              }
+            </p>
+            {estimatedReadiness < 50 && (
+              <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-700"
+                  style={{ width: `${Math.min(100, (estimatedReadiness / 50) * 100)}%` }}
+                />
+              </div>
+            )}
+            {focusedQuestion && estimatedReadiness >= 50 && (
+              <p className="mt-2 truncate rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-600">
+                → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
+              </p>
+            )}
+          </button>
+        </div>
+
+        {/* ── Loading Banner ── */}
+        {loading && (
+          <div className="mb-5 overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50">
+            <div className="h-1 animate-pulse bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400" />
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+                <Loader2 size={18} className="animate-spin text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-blue-800">{getLoadingMessage(mode)}</p>
+                <p className="text-[10px] text-blue-500">This usually takes 10–20 seconds</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Multi-Question Navigator ── */}
+        {hasMultipleQuestions && (
+          <section className="mb-5 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Hash size={15} className="text-indigo-600" />
+                <h2 className="text-sm font-semibold text-slate-800">
+                  Assignment Questions
+                  <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                    {assignmentQuestions.length} parts
+                  </span>
+                </h2>
+              </div>
+              {focusQuestionId && (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  onClick={() => setFocusQuestionId(null)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-2.5 py-1 text-[10px] font-semibold text-indigo-600 hover:bg-indigo-50"
                 >
-                  {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                  Upload
+                  <Target size={10} />
+                  Show All
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {assignmentQuestions.map((aq) => {
+                const isActive = focusQuestionId === aq.id;
+                return (
+                  <button
+                    key={aq.id}
+                    type="button"
+                    onClick={() => setFocusQuestionId(isActive ? null : aq.id)}
+                    className={`group relative flex items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-xs transition-all ${
+                      isActive
+                        ? "border-indigo-400 bg-indigo-600 text-white shadow-md"
+                        : "border-indigo-200 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50"
+                    }`}
+                    style={{ maxWidth: "280px" }}
+                  >
+                    <span className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                      isActive ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-700"
+                    }`}>
+                      {aq.questionNumber}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={`line-clamp-2 font-medium leading-tight ${isActive ? "text-white" : "text-slate-800"}`}>
+                        {aq.questionText.length > 100 ? aq.questionText.slice(0, 100) + "…" : aq.questionText}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        {aq.topic && (
+                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                            isActive ? "bg-white/20 text-white/90" : "bg-indigo-50 text-indigo-600"
+                          }`}>
+                            {aq.topic}
+                          </span>
+                        )}
+                        {aq.marks != null && (
+                          <span className={`text-[9px] font-semibold ${isActive ? "text-white/80" : "text-slate-400"}`}>
+                            {aq.marks} marks
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {focusedQuestion && (
+              <div className="mt-3 rounded-lg border border-indigo-200 bg-white p-3">
+                <p className="mb-1 text-[10px] font-bold uppercase text-indigo-500">
+                  Focusing on Question {focusedQuestion.questionNumber}
+                  {focusedQuestion.marks != null && ` (${focusedQuestion.marks} marks)`}
+                </p>
+                <p className="text-xs text-slate-700">{focusedQuestion.questionText}</p>
+              </div>
+            )}
+
+            {!focusQuestionId && (
+              <p className="mt-2 text-[10px] text-indigo-500/80">
+                <Lightbulb size={10} className="mr-1 inline" />
+                Tip: Click a question to focus the tutor on that specific part. Work through one question at a time for best results.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* ── Topic Coverage Tracker ── */}
+        {hasTopics && (
+          <section className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Target size={16} className="text-blue-600" />
+                <h2 className="text-sm font-semibold text-slate-800">
+                  Topic Coverage
+                </h2>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+                  {coveredCount}/{topicsCovered.length} covered
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {inProgressCount > 0 && (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                    {inProgressCount} in progress
+                  </span>
+                )}
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                  avgConfidence >= 70 ? "bg-green-50 text-green-700" :
+                  avgConfidence >= 40 ? "bg-amber-50 text-amber-700" :
+                  "bg-red-50 text-red-700"
+                }`}>
+                  Avg. confidence: {avgConfidence}%
+                </span>
+              </div>
+            </div>
+
+            {/* Overall progress bar */}
+            <div className="mb-4">
+              <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-700"
+                  style={{ width: `${topicsCovered.length > 0 ? (coveredCount / topicsCovered.length) * 100 : 0}%` }}
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+                <span>Topic mastery</span>
+                <span>{Math.round((coveredCount / topicsCovered.length) * 100)}%</span>
+              </div>
+            </div>
+
+            {/* Topic list */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {topicsCovered.map((topic, idx) => {
+                const statusStyles = {
+                  covered: {
+                    border: "border-green-200",
+                    bg: "bg-green-50/50",
+                    icon: <CheckCircle2 size={14} className="text-green-500" />,
+                    bar: "bg-green-500",
+                    text: "text-green-700",
+                    badge: "bg-green-100 text-green-700",
+                    label: "Covered",
+                  },
+                  in_progress: {
+                    border: "border-amber-200",
+                    bg: "bg-amber-50/30",
+                    icon: <Loader2 size={14} className="text-amber-500" />,
+                    bar: "bg-amber-500",
+                    text: "text-amber-700",
+                    badge: "bg-amber-100 text-amber-700",
+                    label: "In Progress",
+                  },
+                  not_started: {
+                    border: "border-slate-200",
+                    bg: "bg-slate-50/30",
+                    icon: <BookOpen size={14} className="text-slate-400" />,
+                    bar: "bg-slate-300",
+                    text: "text-slate-500",
+                    badge: "bg-slate-100 text-slate-500",
+                    label: "Not Started",
+                  },
+                };
+                const s = statusStyles[topic.status];
+
+                return (
+                  <div
+                    key={`topic-${idx}`}
+                    className={`flex items-start gap-2.5 rounded-lg border p-3 ${s.border} ${s.bg}`}
+                  >
+                    <div className="mt-0.5 flex-shrink-0">{s.icon}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`text-xs font-semibold truncate ${s.text}`}>
+                          {topic.topic}
+                        </p>
+                        <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold ${s.badge}`}>
+                          {s.label}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${s.bar}`}
+                            style={{ width: `${topic.confidence}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500">{topic.confidence}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Guidance message */}
+            {coveredCount < topicsCovered.length && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2">
+                <Lightbulb size={13} className="mt-0.5 flex-shrink-0 text-blue-500" />
+                <p className="text-[11px] text-blue-700">
+                  {coveredCount === 0
+                    ? "Your tutor has identified the key topics. Teaching will continue, then a quiz will test your understanding."
+                    : `${topicsCovered.length - coveredCount} topic${topicsCovered.length - coveredCount > 1 ? "s" : ""} still need${topicsCovered.length - coveredCount === 1 ? "s" : ""} attention. The quiz results will help improve coverage.`
+                  }
+                </p>
+              </div>
+            )}
+
+            {coveredCount === topicsCovered.length && topicsCovered.length > 0 && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                <Award size={13} className="mt-0.5 flex-shrink-0 text-green-600" />
+                <p className="text-[11px] font-medium text-green-700">
+                  All topics covered! You've demonstrated understanding across the full assignment scope. You&apos;re ready to generate a professional draft.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Practice Quiz ── */}
+        {hasPracticeQuiz && (
+          <section className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={16} className="text-blue-600" />
+                <h2 className="text-sm font-semibold text-slate-800">Knowledge Check</h2>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+                  {practiceQuestions.length} questions
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {quizSubmitted && !quizGrading && quizScore && (
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                    quizScore.pct >= 70 ? "bg-green-100 text-green-700" :
+                    quizScore.pct >= 50 ? "bg-amber-100 text-amber-700" :
+                    "bg-red-100 text-red-700"
+                  }`}>
+                    {quizScore.correct}/{quizScore.total} ({quizScore.pct}%)
+                  </span>
+                )}
+                {quizSubmitted && (
+                  <button
+                    type="button"
+                    onClick={resetQuiz}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+                  >
+                    <RotateCcw size={10} />
+                    Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void sendSupportRequest("practice", "Generate a new set of quiz questions to test my understanding.")}
+                  disabled={!canSubmit || loading}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1 text-[10px] font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                  New Questions
                 </button>
                 <button
                   type="button"
-                  onClick={clearSession}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={dismissQuiz}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+                  title="Exit the quiz and return to the conversation"
                 >
-                  <RotateCcw size={13} />
-                  Clear
+                  <XCircle size={10} />
+                  Exit
                 </button>
               </div>
             </div>
 
             <div className="space-y-4">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Assignment Title
-                </span>
-                <input
-                  value={assignmentTitle}
-                  onChange={(event) => setAssignmentTitle(event.target.value)}
-                  placeholder="e.g. Factors contributing to maternal mortality"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
+              {practiceQuestions.map((q, qIdx) => {
+                const answered = (quizAnswers[q.id] ?? "").trim().length > 0;
+                const isChecked = quizSubmitted;
+                const isCorrectMcq = q.type === "mcq" && isChecked && (quizAnswers[q.id] ?? "").toUpperCase() === q.correctAnswer.toUpperCase();
+                const isWrongMcq = q.type === "mcq" && isChecked && answered && !isCorrectMcq;
+                const shortAnswerGraded = q.type === "short_answer" && quizFeedback[q.id] != null;
+                const shortAnswerCorrect = q.type === "short_answer" && quizFeedback[q.id]?.isCorrect === true;
+                const shortAnswerWrong = q.type === "short_answer" && quizFeedback[q.id]?.isCorrect === false;
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Course / Module
-                  </span>
-                  <input
-                    value={course}
-                    onChange={(event) => setCourse(event.target.value)}
-                    placeholder="e.g. Midwifery Care II"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Programme
-                  </span>
-                  <input
-                    value={programme}
-                    onChange={(event) => setProgramme(event.target.value)}
-                    placeholder="e.g. Diploma Nursing"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  What do you want help with most?
-                </span>
-                <input
-                  value={studentGoal}
-                  onChange={(event) => setStudentGoal(event.target.value)}
-                  placeholder="e.g. I want help structuring my argument and using simpler language."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Assignment Instructions
-                </span>
-                <textarea
-                  value={assignmentInstructions}
-                  onChange={(event) => setAssignmentInstructions(event.target.value)}
-                  rows={9}
-                  placeholder="Paste the full assignment question, marking guide, or lecturer instructions here."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Your Current Attempt
-                </span>
-                <textarea
-                  value={currentAttempt}
-                  onChange={(event) => setCurrentAttempt(event.target.value)}
-                  rows={6}
-                  placeholder="Paste your rough answer if you want the tutor to coach or improve it."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
-
-              {/* Advanced Options Toggle */}
-              <button
-                type="button"
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <span className="flex items-center gap-2">
-                  <GraduationCap size={16} />
-                  Advanced Options
-                </span>
-                <ChevronDown size={16} className={`transition-transform ${showAdvancedOptions ? "rotate-180" : ""}`} />
-              </button>
-
-              {showAdvancedOptions && (
-                <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">
-                        Target Word Count
+                return (
+                  <div key={q.id} className={`rounded-xl border p-4 ${
+                    isCorrectMcq || shortAnswerCorrect ? "border-green-200 bg-green-50/50" :
+                    isWrongMcq || shortAnswerWrong ? "border-red-200 bg-red-50/30" :
+                    "border-slate-200 bg-slate-50/30"
+                  }`}>
+                    {/* Question header */}
+                    <div className="mb-3 flex items-start gap-2">
+                      <span className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        isCorrectMcq || shortAnswerCorrect ? "bg-green-500 text-white" :
+                        isWrongMcq || shortAnswerWrong ? "bg-red-500 text-white" :
+                        "bg-blue-100 text-blue-700"
+                      }`}>
+                        {qIdx + 1}
                       </span>
-                      <input
-                        type="number"
-                        value={wordCount ?? ""}
-                        onChange={(event) => setWordCount(event.target.value ? parseInt(event.target.value, 10) : null)}
-                        placeholder="e.g. 2000"
-                        min={100}
-                        max={20000}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">
-                        Citation Style
-                      </span>
-                      <select
-                        value={citationStyle ?? ""}
-                        onChange={(event) => setCitationStyle(event.target.value as CitationStyle || null)}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                      >
-                        <option value="">Not specified</option>
-                        {CITATION_STYLES.map((style) => (
-                          <option key={style.value} value={style.value}>{style.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <label className="block">
-                    <span className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <Calendar size={14} />
-                      Due Date
-                    </span>
-                    <input
-                      type="date"
-                      value={dueDate}
-                      onChange={(event) => setDueDate(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Marking Criteria / Rubric
-                    </span>
-                    <textarea
-                      value={markingCriteria}
-                      onChange={(event) => setMarkingCriteria(event.target.value)}
-                      rows={4}
-                      placeholder="Paste the marking rubric or grading criteria if available."
-                      className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <MessageCircle size={14} />
-                      Previous Lecturer Feedback
-                    </span>
-                    <textarea
-                      value={lecturerFeedback}
-                      onChange={(event) => setLecturerFeedback(event.target.value)}
-                      rows={3}
-                      placeholder="Paste any feedback from previous assignments you'd like the tutor to help address."
-                      className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    />
-                  </label>
-                </div>
-              )}
-
-              {/* References Section */}
-              <div className="mt-4 rounded-xl border border-slate-200 bg-gradient-to-r from-purple-50 to-blue-50 p-4">
-                <button
-                  type="button"
-                  onClick={() => setShowReferencesPanel(!showReferencesPanel)}
-                  className="flex w-full items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Library size={16} className="text-purple-600" />
-                    <span className="font-semibold text-slate-700">Your Sources & References</span>
-                    {references.length > 0 && (
-                      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700">
-                        {references.length}
-                      </span>
-                    )}
-                  </div>
-                  <ChevronDown size={16} className={`text-slate-400 transition-transform ${showReferencesPanel ? "rotate-180" : ""}`} />
-                </button>
-                
-                <p className="mt-1 text-xs text-slate-500">
-                  Add your research sources. These will be cited in your professional draft.
-                </p>
-
-                {showReferencesPanel && (
-                  <div className="mt-4 space-y-4">
-                    {/* Add Reference Form */}
-                    <div className="rounded-lg border border-purple-200 bg-white p-3">
-                      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-purple-700">
-                        <Plus size={14} />
-                        Add New Reference
+                      <div className="flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                            q.type === "mcq" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                          }`}>
+                            {q.type === "mcq" ? "Multiple Choice" : "Short Answer"}
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium text-slate-800">{q.question}</p>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <select
-                          value={newReference.type}
-                          onChange={(e) => setNewReference({...newReference, type: e.target.value as Reference["type"]})}
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                        >
-                          <option value="book">📚 Book</option>
-                          <option value="journal">📄 Journal Article</option>
-                          <option value="website">🌐 Website</option>
-                          <option value="other">📁 Other</option>
-                        </select>
-                        <input
-                          value={newReference.year}
-                          onChange={(e) => setNewReference({...newReference, year: e.target.value})}
-                          placeholder="Year (e.g. 2023)"
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                        />
-                      </div>
-                      <input
-                        value={newReference.title}
-                        onChange={(e) => setNewReference({...newReference, title: e.target.value})}
-                        placeholder="Title of source *"
-                        className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                      />
-                      <input
-                        value={newReference.authors}
-                        onChange={(e) => setNewReference({...newReference, authors: e.target.value})}
-                        placeholder="Authors (e.g. Smith, J. & Brown, K.) *"
-                        className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                      />
-                      <input
-                        value={newReference.source}
-                        onChange={(e) => setNewReference({...newReference, source: e.target.value})}
-                        placeholder="Publisher / Journal Name"
-                        className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                      />
-                      {newReference.type === "website" && (
-                        <input
-                          value={newReference.url || ""}
-                          onChange={(e) => setNewReference({...newReference, url: e.target.value})}
-                          placeholder="URL (for websites)"
-                          className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                        />
-                      )}
-                      <textarea
-                        value={newReference.notes || ""}
-                        onChange={(e) => setNewReference({...newReference, notes: e.target.value})}
-                        placeholder="Key points from this source you want to use..."
-                        rows={2}
-                        className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={addReference}
-                        disabled={!newReference.title.trim() || !newReference.authors.trim()}
-                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-xs font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <BookMarked size={14} />
-                        Add Reference
-                      </button>
                     </div>
 
-                    {/* References List */}
-                    {references.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-600">
-                          Your References ({references.length})
-                        </div>
-                        {references.map((ref) => (
-                          <div key={ref.id} className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white p-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">
-                                  {ref.type === "book" && "📚"}
-                                  {ref.type === "journal" && "📄"}
-                                  {ref.type === "website" && "🌐"}
-                                  {ref.type === "other" && "📁"}
-                                </span>
-                                <span className="text-xs font-semibold text-slate-800">{ref.title}</span>
-                                <span className="text-xs text-slate-400">({ref.year})</span>
-                              </div>
-                              <div className="text-xs text-slate-500">{ref.authors}</div>
-                              {ref.source && <div className="text-xs italic text-slate-400">{ref.source}</div>}
-                              {ref.url && (
-                                <a href={ref.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                                  <Link2 size={10} />
-                                  {ref.url.slice(0, 40)}...
-                                </a>
-                              )}
-                              {ref.notes && (
-                                <div className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-600">
-                                  <strong>Notes:</strong> {ref.notes}
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeReference(ref.id)}
-                              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                    {/* MCQ Options */}
+                    {q.type === "mcq" && (
+                      <div className="ml-8 space-y-2">
+                        {q.options.map((opt) => {
+                          const selected = (quizAnswers[q.id] ?? "") === opt.label;
+                          const isCorrectOpt = isChecked && opt.label.toUpperCase() === q.correctAnswer.toUpperCase();
+                          const isWrongOpt = isChecked && selected && !isCorrectOpt;
+
+                          return (
+                            <label
+                              key={opt.label}
+                              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-all ${
+                                isCorrectOpt && isChecked
+                                  ? "border-green-300 bg-green-50 font-medium text-green-800"
+                                  : isWrongOpt
+                                    ? "border-red-300 bg-red-50 text-red-700 line-through"
+                                    : selected
+                                      ? "border-blue-300 bg-blue-50 text-blue-800"
+                                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                              } ${quizSubmitted ? "pointer-events-none" : ""}`}
                             >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
+                              <input
+                                type="radio"
+                                name={`quiz-${q.id}`}
+                                value={opt.label}
+                                checked={selected}
+                                onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt.label }))}
+                                disabled={quizSubmitted}
+                                className="h-4 w-4 accent-blue-600"
+                              />
+                              <span className="flex-shrink-0 font-bold">{opt.label}.</span>
+                              <span>{opt.text}</span>
+                              {isCorrectOpt && isChecked && <CheckCircle2 size={16} className="ml-auto flex-shrink-0 text-green-600" />}
+                              {isWrongOpt && <XCircle size={16} className="ml-auto flex-shrink-0 text-red-500" />}
+                            </label>
+                          );
+                        })}
                       </div>
                     )}
 
-                    {references.length === 0 && (
-                      <div className="rounded-lg border border-dashed border-purple-200 bg-white p-4 text-center">
-                        <Library size={24} className="mx-auto mb-2 text-purple-300" />
-                        <p className="text-xs text-slate-500">
-                          No references added yet. Add your research sources to get properly cited content.
+                    {/* Short Answer */}
+                    {q.type === "short_answer" && (
+                      <div className="ml-8">
+                        <textarea
+                          value={quizAnswers[q.id] ?? ""}
+                          onChange={(e) => setQuizAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                          rows={3}
+                          disabled={quizSubmitted}
+                          placeholder="Type your answer here…"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 disabled:bg-slate-50"
+                        />
+                        {isChecked && (
+                          <div className="mt-2 space-y-2">
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5">
+                              <p className="text-[10px] font-bold uppercase text-blue-500">Model Answer</p>
+                              <p className="text-xs text-blue-800">{q.correctAnswer}</p>
+                            </div>
+                            {quizGrading && !shortAnswerGraded ? (
+                              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                <Loader2 size={12} className="animate-spin text-blue-500" />
+                                <span className="text-xs text-slate-500">Grading your answer…</span>
+                              </div>
+                            ) : quizFeedback[q.id] ? (
+                              <div className={`rounded-lg border p-2.5 ${
+                                quizFeedback[q.id].isCorrect
+                                  ? "border-green-200 bg-green-50"
+                                  : "border-red-200 bg-red-50"
+                              }`}>
+                                <div className="mb-1 flex items-center gap-1.5">
+                                  {quizFeedback[q.id].isCorrect
+                                    ? <CheckCircle2 size={12} className="text-green-600" />
+                                    : <XCircle size={12} className="text-red-500" />
+                                  }
+                                  <span className={`text-[10px] font-bold uppercase ${
+                                    quizFeedback[q.id].isCorrect ? "text-green-600" : "text-red-600"
+                                  }`}>
+                                    {quizFeedback[q.id].isCorrect ? "Correct — Good understanding!" : "Needs Improvement"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-700">{quizFeedback[q.id].feedback}</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Explanation (shown after submit) */}
+                    {isChecked && q.explanation && (
+                      <div className="ml-8 mt-3 rounded-lg border border-amber-100 bg-amber-50 p-2.5">
+                        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-amber-600">
+                          <Lightbulb size={11} />
+                          Explanation
                         </p>
+                        <p className="text-xs text-amber-800">{q.explanation}</p>
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Help Mode
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Choose how you want the tutor to support you right now.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              {(["understand", "practice", "draft"] as AssignmentSupportMode[]).map(
-                (item) => {
-                  const isLocked = item === "draft" && estimatedReadiness < 50;
-                  const canGeneratePro = item === "draft" && estimatedReadiness >= 50;
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => !isLocked && setMode(item)}
-                      disabled={isLocked}
-                      className={`w-full rounded-xl border px-4 py-3 text-left transition-colors ${
-                        mode === item
-                          ? item === "draft" && canGeneratePro
-                            ? "border-purple-500 bg-gradient-to-r from-purple-50 to-blue-50"
-                            : "border-blue-500 bg-blue-50"
-                          : isLocked
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
-                            : "border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {item === "understand" && <BookOpen size={16} className="text-blue-600" />}
-                          {item === "practice" && <ClipboardCheck size={16} className="text-amber-600" />}
-                          {item === "draft" && canGeneratePro && <Sparkles size={16} className="text-purple-600" />}
-                          {item === "draft" && !canGeneratePro && <PenSquare size={16} className="text-slate-400" />}
-                          <p className="text-sm font-semibold text-slate-900">
-                            {item === "draft" && canGeneratePro ? "✨ Professional Draft" : formatModeLabel(item)}
-                          </p>
-                        </div>
-                        {item === "understand" && estimatedReadiness >= 30 && (
-                          <CheckCircle2 size={16} className="text-green-500" />
-                        )}
-                        {item === "practice" && estimatedReadiness >= 50 && (
-                          <CheckCircle2 size={16} className="text-green-500" />
-                        )}
-                        {item === "draft" && estimatedReadiness >= 50 && (
-                          <div className="flex items-center gap-1">
-                            <Award size={16} className="text-purple-500" />
-                            <span className="text-xs font-bold text-purple-600">Unlocked!</span>
-                          </div>
-                        )}
-                        {isLocked && (
-                          <span className="text-xs text-slate-400">Need 50% understanding</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {item === "understand" &&
-                          "Break down the task, decode keywords, and explain the concepts."}
-                        {item === "practice" &&
-                          "Get coached with questions and step-by-step reasoning."}
-                        {item === "draft" && canGeneratePro &&
-                          "Generate a professional assignment with your sources properly cited!"}
-                        {item === "draft" && !canGeneratePro &&
-                          "Complete understanding questions to unlock professional draft generation."}
-                      </p>
-                    </button>
-                  );
-                },
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div className="space-y-6">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Live Tutor Session
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Ask follow-up questions as you learn. The tutor keeps the thread.
-                </p>
-              </div>
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                Current mode: {formatModeLabel(mode)}
-              </div>
+                );
+              })}
             </div>
 
-            <div className="mb-4 max-h-[340px] space-y-3 overflow-y-auto rounded-xl bg-slate-50 p-3">
-              {thread.length === 0 && (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                  Start with <span className="font-semibold text-slate-700">Understand</span>
-                  {" "}to unpack the brief, then move into practice and drafting.
-                </div>
-              )}
-
-              {thread.map((message) => (
-                <div
-                  key={message.id}
-                  className={`max-w-3xl rounded-xl px-4 py-3 text-sm shadow-sm ${
-                    message.role === "user"
-                      ? "ml-auto bg-blue-600 text-white"
-                      : "bg-white text-slate-700"
-                  }`}
+            {/* Submit / Score */}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              {!quizSubmitted ? (
+                <button
+                  type="button"
+                  onClick={handleQuizSubmit}
+                  disabled={Object.keys(quizAnswers).length === 0 || loading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  <div className="mb-1 flex items-center justify-between gap-3 text-[11px] uppercase tracking-wide">
-                    <span className="font-semibold">
-                      {message.role === "user" ? "You" : "Tutor"}
-                    </span>
-                    <span className={message.role === "user" ? "text-blue-100" : "text-slate-400"}>
-                      {formatModeLabel(message.mode)}
-                    </span>
-                  </div>
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {loading ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  Submit &amp; Grade
+                </button>
+              ) : quizGrading ? (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700">
+                  <Loader2 size={15} className="animate-spin" />
+                  Grading your answers…
                 </div>
-              ))}
-            </div>
-
-            <div className="space-y-3">
-              <div className="relative">
-                <textarea
-                  value={followUp}
-                  onChange={(event) => setFollowUp(event.target.value)}
-                  rows={4}
-                  placeholder="Ask a follow-up, answer the tutor's questions, or request feedback on your draft..."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-3 pr-12 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                />
-                {voiceSupported && (
+              ) : (
+                <>
+                  {quizScore && (
+                    <div className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                      quizScore.pct >= 70 ? "bg-green-100 text-green-800" :
+                      quizScore.pct >= 50 ? "bg-amber-100 text-amber-800" :
+                      "bg-red-100 text-red-800"
+                    }`}>
+                      Score: {quizScore.correct}/{quizScore.total} ({quizScore.pct}%)
+                      {quizScore.pct >= 70 ? " — Great understanding! 🎉" :
+                       quizScore.pct >= 50 ? " — Good progress! Keep going." :
+                       " — Review the explanations and try again."}
+                    </div>
+                  )}
+                  {estimatedReadiness < 50 && (
+                    <button
+                      type="button"
+                      onClick={() => void sendSupportRequest("practice", "Generate a new set of quiz questions to test my understanding.")}
+                      disabled={!canSubmit || loading}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                      Try Again
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={isRecording ? stopVoiceInput : startVoiceInput}
-                    className={`absolute right-3 top-3 rounded-lg p-2 transition-colors ${
-                      isRecording 
-                        ? "bg-red-100 text-red-600 hover:bg-red-200" 
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                    title={isRecording ? "Stop recording" : "Voice input"}
+                    onClick={dismissQuiz}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                   >
-                    {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+                    <MessageCircle size={14} />
+                    Exit Quiz
                   </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void sendSupportRequest(mode)}
-                  disabled={!canSubmit}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {loading ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <Send size={15} />
-                  )}
-                  Continue Session
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendSupportRequest("practice", "Use a few checking questions to test if I really understand this assignment.")}
-                  disabled={!canSubmit || loading}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Practice Me
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendSupportRequest("draft", `Generate a professional assignment${references.length > 0 ? ` using my ${references.length} references` : ""}. Cite sources in ${citationStyle || "APA"} format.`)}
-                  disabled={!canSubmit || loading || estimatedReadiness < 50}
-                  title={estimatedReadiness < 50 ? `Need 50% understanding to unlock (currently ${estimatedReadiness}%)` : "Generate professional assignment with citations"}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60 ${
-                    estimatedReadiness >= 50
-                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md hover:from-purple-700 hover:to-blue-700"
-                      : "border border-slate-300 text-slate-500"
-                  }`}
-                >
-                  {estimatedReadiness >= 50 ? (
-                    <>
-                      <Sparkles size={15} />
-                      Generate Professional Draft
-                    </>
-                  ) : (
-                    <>
-                      <PenSquare size={15} />
-                      Draft ({50 - estimatedReadiness}% more)
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Tutor Guidance
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Structured coaching, comprehension checks, and learning support.
-                </p>
-              </div>
-              {latestTurn && (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-700">
-                    Stage: {formatModeLabel(latestTurn.response.stage)}
-                  </span>
-                  <span className={`rounded-full px-3 py-1 font-semibold ${
-                    latestTurn.response.estimatedReadiness >= 50 
-                      ? "bg-green-50 text-green-700"
-                      : latestTurn.response.estimatedReadiness >= 30 
-                        ? "bg-amber-50 text-amber-700" 
-                        : "bg-red-50 text-red-700"
-                  }`}>
-                    Understanding: {latestTurn.response.estimatedReadiness}%
-                    {latestTurn.response.estimatedReadiness >= 50 && " ✓ Draft Ready"}
-                  </span>
-                  {references.length > 0 && (
-                    <span className="rounded-full bg-purple-50 px-3 py-1 font-semibold text-purple-700">
-                      📚 {references.length} References
-                    </span>
-                  )}
-                </div>
+                </>
               )}
             </div>
 
-            {!latestTurn && (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                <HelpCircle className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p>Your tutor response will appear here after the first request.</p>
-                <p className="mt-1 text-xs">Start with "Explain It" to understand your assignment.</p>
+            {/* ── Draft unlock CTA after quiz ── */}
+            {quizSubmitted && !quizGrading && estimatedReadiness >= 50 && !pendingAutoDraft && (
+              <div className="mt-4 rounded-xl border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-500">
+                      <Sparkles size={18} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">Generating your assignment draft… ✨</p>
+                      <p className="text-[11px] text-slate-500">
+                        Understanding at {estimatedReadiness}% — your draft will be generated automatically.
+                        {references.length > 0 && ` ${references.length} reference${references.length > 1 ? "s" : ""} will be cited.`}
+                      </p>
+                    </div>
+                  </div>
+                  {!loading && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        dismissQuiz();
+                        void sendSupportRequest("draft", focusedQuestion
+                          ? `Create a professional draft for question ${focusedQuestion.questionNumber}: "${focusedQuestion.questionText}" using my understanding and ${references.length > 0 ? `the ${references.length} references I provided` : "academic sources"}. Properly cite all sources in ${citationStyle || "APA"} format.`
+                          : `Create a professional assignment draft using my understanding and ${references.length > 0 ? `the ${references.length} references I provided` : "academic sources"}. Properly cite all sources in ${citationStyle || "APA"} format.`
+                        );
+                      }}
+                      disabled={!canSubmit || loading}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
+                    >
+                      <Sparkles size={15} />
+                      Generate My Draft
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Conversation (hidden when draft is ready or quiz is active) ── */}
+        {!hasPracticeQuiz && !hasDraft && !isDraftGenerating && (
+        <section className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-800">Live Session</h2>
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-500">
+              {formatModeLabel(mode)}
+            </span>
+          </div>
+
+          <div className="mb-3 max-h-[360px] space-y-2 overflow-y-auto rounded-lg bg-slate-50 p-3">
+            {thread.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-8">
+                <MessageCircle size={24} className="text-slate-200" />
+                <p className="text-xs font-medium text-slate-500">Your conversation with the tutor will appear here</p>
+                <p className="text-[10px] text-slate-400">
+                  Upload a document or paste your brief above to start the automatic teaching flow
+                </p>
               </div>
             )}
 
+            {thread.map((msg) => (
+              <div
+                key={msg.id}
+                className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm ${
+                  msg.role === "user"
+                    ? "ml-auto bg-blue-600 text-white"
+                    : "bg-white text-slate-700 shadow-sm"
+                }`}
+              >
+                <div className="mb-0.5 flex items-center justify-between text-[10px] uppercase tracking-wide">
+                  <span className="font-semibold">{msg.role === "user" ? "You" : "Tutor"}</span>
+                  <span className={msg.role === "user" ? "text-blue-200" : "text-slate-400"}>
+                    {formatModeLabel(msg.mode)}
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="relative">
+            <textarea
+              value={followUp}
+              onChange={(e) => setFollowUp(e.target.value)}
+              rows={3}
+              placeholder="Ask a follow-up, answer questions, or request feedback…"
+              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 pr-12 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+            {voiceSupported && (
+              <button
+                type="button"
+                onClick={isRecording ? stopVoiceInput : startVoiceInput}
+                className={`absolute right-2.5 top-2.5 rounded-lg p-1.5 transition-colors ${
+                  isRecording
+                    ? "bg-red-100 text-red-600 hover:bg-red-200"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+                title={isRecording ? "Stop recording" : "Voice input"}
+              >
+                {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void sendSupportRequest(mode)}
+              disabled={!canSubmit}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+              Send
+            </button>
+            <button
+              type="button"
+              onClick={() => void sendSupportRequest("practice", "Use checking questions to test if I really understand this assignment.")}
+              disabled={!canSubmit || loading}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Practice Me
+            </button>
+            {estimatedReadiness >= 50 && (
+              <button
+                type="button"
+                onClick={() => void sendSupportRequest("draft", `Generate a professional assignment${references.length > 0 ? ` using my ${references.length} references` : ""}. Cite in ${citationStyle || "APA"} format.`)}
+                disabled={!canSubmit || loading}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
+              >
+                <Sparkles size={13} />
+                Generate Draft
+              </button>
+            )}
+          </div>
+        </section>
+        )}
+
+        {/* ── Draft generating spinner ── */}
+        {isDraftGenerating && (
+          <section className="mb-5 rounded-xl border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 p-8 shadow-sm">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100">
+                <Loader2 size={28} className="animate-spin text-purple-600" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-slate-800">Generating your assignment…</p>
+                <p className="mt-1 text-xs text-slate-500">Following your assignment guidelines and incorporating your demonstrated understanding.</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Assignment Draft (shown prominently when available) ── */}
+        {hasDraft && latestTurn && (
+          <section className="mb-5">
+            <div className="rounded-xl border-2 border-purple-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-purple-100 bg-gradient-to-r from-purple-50 to-blue-50 px-5 py-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="rounded-lg bg-purple-100 p-1.5">
+                    <Sparkles size={14} className="text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Your Assignment</p>
+                    <p className="text-[10px] text-slate-500">Generated based on the assignment guidelines and your understanding.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyDraft()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <Copy size={12} />
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleExportDraft()}
+                    disabled={exporting}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                    Export DOCX
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2">
+                <AlertTriangle size={12} className="flex-shrink-0 text-amber-600" />
+                <p className="text-[10px] text-amber-700">
+                  <strong>Academic integrity:</strong> Review this draft, add your own examples, verify claims, and rewrite in your own voice before submission.
+                </p>
+              </div>
+              <div className="max-h-[600px] overflow-y-auto px-5 py-4">
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700">
+                  {latestTurn.response.draftResponse}
+                </pre>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => void sendSupportRequest("draft", `Regenerate the assignment draft with improvements.${references.length > 0 ? ` Use my ${references.length} references.` : ""} Cite in ${citationStyle || "APA"} format.`)}
+                  disabled={!canSubmit || loading}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-300 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Regenerate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode("understand"); }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  <MessageCircle size={12} />
+                  Back to Chat
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Tutor Guidance (hidden when draft is showing) ── */}
+        {!hasDraft && !isDraftGenerating && (
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          {/* Header */}
+          <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-1.5">
+                <BrainCircuit size={16} className="text-blue-600" />
+              </div>
+              <h2 className="text-sm font-bold text-slate-800">Tutor Guidance</h2>
+            </div>
             {latestTurn && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
+                  {formatModeLabel(latestTurn.response.stage)}
+                </span>
+                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                  latestTurn.response.estimatedReadiness >= 50
+                    ? "bg-green-50 text-green-700"
+                    : latestTurn.response.estimatedReadiness >= 30
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-red-50 text-red-700"
+                }`}>
+                  {latestTurn.response.estimatedReadiness}%
+                  {latestTurn.response.estimatedReadiness >= 50 && " ✓ Draft Ready"}
+                </span>
+                {references.length > 0 && (
+                  <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700">
+                    📚 {references.length} refs
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5">
+            {!latestTurn ? (
+              <div className="py-8">
+                <div className="mb-6 text-center">
+                  <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100">
+                    <BrainCircuit size={28} className="text-blue-500" />
+                  </div>
+                  <p className="text-base font-semibold text-slate-700">Your assignment tutor</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Upload your assignment and the tutor will guide you through automatically
+                  </p>
+                </div>
+                <div className="mx-auto grid max-w-md grid-cols-3 gap-3">
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-center">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">1</div>
+                    <BookOpen size={16} className="text-blue-400" />
+                    <p className="text-[11px] font-semibold text-slate-700">Understand</p>
+                    <p className="text-[10px] leading-snug text-slate-400">Assignment topics explained clearly</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-center">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">2</div>
+                    <ClipboardCheck size={16} className="text-amber-400" />
+                    <p className="text-[11px] font-semibold text-slate-700">Quiz</p>
+                    <p className="text-[10px] leading-snug text-slate-400">Tests &amp; marks your answers</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-purple-100 bg-purple-50/50 p-3 text-center">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">3</div>
+                    <Sparkles size={16} className="text-purple-400" />
+                    <p className="text-[11px] font-semibold text-slate-700">Draft</p>
+                    <p className="text-[10px] leading-snug text-slate-400">Auto-generates your assignment</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
               <div className="space-y-5">
-                {/* Coaching Message */}
-                <div className="rounded-xl bg-gradient-to-br from-blue-50 to-slate-50 p-4">
-                  <p className="whitespace-pre-wrap text-sm text-slate-700">
+                {/* ── 1. Coaching Message — prominent card ── */}
+                <div className="rounded-xl bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 shadow-sm ring-1 ring-blue-100/50">
+                  <div className="mb-2 flex items-center gap-2">
+                    <MessageCircle size={14} className="text-blue-500" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Tutor Says</span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
                     {latestTurn.response.coachingMessage}
                   </p>
                 </div>
 
-                {/* Main guidance sections */}
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                  <SectionList
-                    title="Learning Focus"
-                    items={latestTurn.response.learningFocus}
-                    tone="blue"
-                  />
-                  <SectionList
-                    title="Check Questions"
-                    items={latestTurn.response.checkQuestions}
-                    tone="amber"
-                  />
-                  <SectionList
-                    title="Outline"
-                    items={latestTurn.response.outline}
-                    tone="slate"
-                  />
-                  <SectionList
-                    title="Next Steps"
-                    items={latestTurn.response.nextSteps}
-                    tone="emerald"
-                  />
-                </div>
-
-                {/* Enhanced pedagogy sections */}
-                {(latestTurn.response.conceptsExplained?.length > 0 ||
-                  latestTurn.response.commonMistakes?.length > 0 ||
-                  latestTurn.response.reflectionPrompts?.length > 0) && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                      <GraduationCap size={16} />
-                      Learning Support
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      <SectionList
-                        title="Concepts Explained"
-                        items={latestTurn.response.conceptsExplained || []}
-                        tone="blue"
-                      />
-                      <SectionList
-                        title="Common Mistakes to Avoid"
-                        items={latestTurn.response.commonMistakes || []}
-                        tone="amber"
-                      />
-                      <SectionList
-                        title="Reflection Prompts"
-                        items={latestTurn.response.reflectionPrompts || []}
-                        tone="emerald"
-                      />
-                    </div>
+                {/* ── 2. Core Sections — 2x2 grid with icons ── */}
+                {(latestTurn.response.learningFocus.length > 0 ||
+                  latestTurn.response.checkQuestions.length > 0 ||
+                  latestTurn.response.outline.length > 0 ||
+                  latestTurn.response.nextSteps.length > 0) && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <SectionList title="Learning Focus" items={latestTurn.response.learningFocus} icon={Target} tone="blue" />
+                    <SectionList title="Check Questions" items={latestTurn.response.checkQuestions} icon={HelpCircle} tone="amber" />
+                    <SectionList title="Outline" items={latestTurn.response.outline} icon={ListChecks} tone="slate" />
+                    <SectionList title="Next Steps" items={latestTurn.response.nextSteps} icon={ChevronRight} tone="emerald" />
                   </div>
                 )}
 
-                {/* Paraphrasing tips and resources */}
-                {(latestTurn.response.paraphrasingTips?.length > 0 ||
-                  latestTurn.response.suggestedResources?.length > 0) && (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <SectionList
-                      title="Paraphrasing Tips"
-                      items={latestTurn.response.paraphrasingTips || []}
-                      tone="blue"
-                    />
-                    <SectionList
-                      title="Research Directions"
-                      items={latestTurn.response.suggestedResources || []}
-                      tone="slate"
-                    />
-                  </div>
-                )}
-
-                {/* Understanding indicators */}
+                {/* ── 3. Understanding Indicators — visual checklist ── */}
                 {latestTurn.response.understandingIndicators?.length > 0 && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-                    <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-700">
-                      <Target size={16} />
-                      Signs You Understand
+                  <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
+                    <h3 className="mb-2.5 flex items-center gap-2 text-xs font-bold text-green-700">
+                      <Target size={13} />
+                      You understand this when you can…
                     </h3>
-                    <ul className="space-y-1">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {latestTurn.response.understandingIndicators.map((indicator, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-green-700">
-                          <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0" />
-                          <span>{indicator}</span>
-                        </li>
+                        <div key={idx} className="flex items-start gap-2 rounded-lg bg-white/60 px-3 py-2">
+                          <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0 text-green-500" />
+                          <span className="text-xs leading-relaxed text-green-800">{indicator}</span>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
 
-                {/* Draft section with export */}
-                {latestTurn.response.draftResponse.trim() && (
+                {/* ── 4. Deep Learning — collapsible extras ── */}
+                {((latestTurn.response.conceptsExplained?.length ?? 0) > 0 ||
+                  (latestTurn.response.commonMistakes?.length ?? 0) > 0 ||
+                  (latestTurn.response.reflectionPrompts?.length ?? 0) > 0 ||
+                  (latestTurn.response.paraphrasingTips?.length ?? 0) > 0 ||
+                  (latestTurn.response.suggestedResources?.length ?? 0) > 0) && (
                   <div className="rounded-xl border border-slate-200">
-                    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          Draft Scaffold
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          This is a starting point. Rewrite in your own words before submission.
-                        </p>
-                      </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeepLearning(!showDeepLearning)}
+                      className="flex w-full items-center justify-between px-4 py-3 hover:bg-slate-50"
+                    >
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void copyDraft()}
-                          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          <Copy size={13} />
-                          Copy
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleExportDraft()}
-                          disabled={exporting}
-                          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                        >
-                          {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                          Export DOCX
-                        </button>
+                        <GraduationCap size={15} className="text-purple-500" />
+                        <span className="text-xs font-bold text-slate-700">Deep Learning &amp; Study Tips</span>
+                        <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[9px] font-bold text-purple-600">
+                          {[
+                            ...(latestTurn.response.conceptsExplained ?? []),
+                            ...(latestTurn.response.commonMistakes ?? []),
+                            ...(latestTurn.response.reflectionPrompts ?? []),
+                            ...(latestTurn.response.paraphrasingTips ?? []),
+                            ...(latestTurn.response.suggestedResources ?? []),
+                          ].length} tips
+                        </span>
                       </div>
-                    </div>
-                    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2">
-                      <p className="flex items-center gap-2 text-xs text-amber-700">
-                        <AlertTriangle size={14} />
-                        <strong>Important:</strong> This draft requires significant editing. Add your own examples, verify claims, and rewrite in your voice.
-                      </p>
-                    </div>
-                    <pre className="overflow-x-auto whitespace-pre-wrap bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                      {latestTurn.response.draftResponse}
-                    </pre>
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform ${showDeepLearning ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {showDeepLearning && (
+                      <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          <SectionList title="Key Concepts" items={latestTurn.response.conceptsExplained || []} icon={BookOpen} tone="blue" />
+                          <SectionList title="Common Mistakes" items={latestTurn.response.commonMistakes || []} icon={AlertTriangle} tone="amber" />
+                          <SectionList title="Reflection Prompts" items={latestTurn.response.reflectionPrompts || []} icon={Lightbulb} tone="emerald" />
+                          <SectionList title="Paraphrasing Tips" items={latestTurn.response.paraphrasingTips || []} icon={PenSquare} tone="purple" />
+                          <SectionList title="Research Directions" items={latestTurn.response.suggestedResources || []} icon={Library} tone="slate" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Draft is now shown in its own section above */}
               </div>
             )}
-          </section>
-        </div>
-      </div>
+          </div>
+        </section>
+        )}
       </>
       )}
     </div>

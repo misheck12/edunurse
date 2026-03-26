@@ -3252,6 +3252,8 @@ export interface AssignmentSupportInput {
     url?: string;
     notes?: string;
   }>;
+  // Multi-question support: which sub-question the student is focusing on
+  focusQuestionId?: string;
 }
 
 const AssignmentSupportPayloadSchema = z.object({
@@ -3272,6 +3274,36 @@ const AssignmentSupportPayloadSchema = z.object({
   understandingIndicators: z.array(z.string()).default([]),
   paraphrasingTips: z.array(z.string()).default([]),
   estimatedReadiness: z.number().min(0).max(100).default(0),
+  topicsCovered: z.array(z.object({
+    topic: z.string(),
+    status: z.enum(["not_started", "in_progress", "covered"]),
+    confidence: z.number().min(0).max(100).default(0),
+  })).default([]),
+  practiceQuestions: z.array(z.object({
+    id: z.string(),
+    type: z.enum(["mcq", "short_answer"]),
+    question: z.string(),
+    options: z.array(z.object({
+      label: z.string(),
+      text: z.string(),
+    })).default([]),
+    correctAnswer: z.string(),
+    explanation: z.string().default(""),
+  })).default([]),
+  // Multi-question detection: sub-questions found in the assignment brief
+  assignmentQuestions: z.array(z.object({
+    id: z.string(),
+    questionNumber: z.number(),
+    questionText: z.string(),
+    marks: z.number().nullable().default(null),
+    topic: z.string().default(""),
+  })).default([]),
+  // Quiz grading results — returned when the AI evaluates student quiz answers
+  quizResults: z.array(z.object({
+    questionId: z.string(),
+    isCorrect: z.boolean(),
+    feedback: z.string().default(""),
+  })).default([]),
 });
 
 export interface AssignmentSupportResult
@@ -3356,7 +3388,85 @@ function normalizeAssignmentSupportPayload(
     estimatedReadiness: typeof raw.estimatedReadiness === "number" 
       ? Math.max(0, Math.min(100, raw.estimatedReadiness)) 
       : mode === "draft" ? 70 : mode === "practice" ? 40 : 10,
+    topicsCovered: normalizeTopicsCovered(raw.topicsCovered),
+    practiceQuestions: normalizePracticeQuestions(raw.practiceQuestions),
+    assignmentQuestions: normalizeAssignmentQuestions(raw.assignmentQuestions),
+    quizResults: normalizeQuizResults(raw.quizResults),
   };
+}
+
+function normalizeTopicsCovered(value: unknown): z.infer<typeof AssignmentSupportPayloadSchema>["topicsCovered"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((t): t is Record<string, unknown> => t != null && typeof t === "object")
+    .slice(0, 15)
+    .map((t) => {
+      const statusRaw = String(t.status ?? "not_started");
+      const status = ["not_started", "in_progress", "covered"].includes(statusRaw)
+        ? (statusRaw as "not_started" | "in_progress" | "covered")
+        : "not_started";
+      return {
+        topic: sanitizeLine(String(t.topic ?? "")).slice(0, 200),
+        status,
+        confidence: typeof t.confidence === "number" ? Math.max(0, Math.min(100, t.confidence)) : 0,
+      };
+    })
+    .filter((t) => t.topic.length > 0);
+}
+
+function normalizePracticeQuestions(value: unknown): z.infer<typeof AssignmentSupportPayloadSchema>["practiceQuestions"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((q): q is Record<string, unknown> => q != null && typeof q === "object")
+    .slice(0, 10)
+    .map((q, idx) => {
+      const type = q.type === "mcq" ? "mcq" as const : "short_answer" as const;
+      const options = Array.isArray(q.options)
+        ? q.options
+            .filter((o): o is Record<string, unknown> => o != null && typeof o === "object")
+            .map((o) => ({
+              label: sanitizeLine(String(o.label ?? "")).slice(0, 5),
+              text: sanitizeLine(String(o.text ?? "")).slice(0, 500),
+            }))
+        : [];
+      return {
+        id: sanitizeLine(String(q.id ?? `q${idx + 1}`)).slice(0, 20),
+        type,
+        question: sanitizeLine(String(q.question ?? "")).slice(0, 1000),
+        options: type === "mcq" ? options.slice(0, 6) : [],
+        correctAnswer: sanitizeLine(String(q.correctAnswer ?? "")).slice(0, 1000),
+        explanation: sanitizeLine(String(q.explanation ?? "")).slice(0, 1500),
+      };
+    })
+    .filter((q) => q.question.length > 0 && q.correctAnswer.length > 0);
+}
+
+function normalizeAssignmentQuestions(value: unknown): z.infer<typeof AssignmentSupportPayloadSchema>["assignmentQuestions"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((q): q is Record<string, unknown> => q != null && typeof q === "object")
+    .slice(0, 20)
+    .map((q, idx) => ({
+      id: sanitizeLine(String(q.id ?? `aq${idx + 1}`)).slice(0, 30),
+      questionNumber: typeof q.questionNumber === "number" ? q.questionNumber : idx + 1,
+      questionText: sanitizeLine(String(q.questionText ?? "")).slice(0, 2000),
+      marks: typeof q.marks === "number" ? q.marks : null,
+      topic: sanitizeLine(String(q.topic ?? "")).slice(0, 200),
+    }))
+    .filter((q) => q.questionText.length > 0);
+}
+
+function normalizeQuizResults(value: unknown): z.infer<typeof AssignmentSupportPayloadSchema>["quizResults"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((r): r is Record<string, unknown> => r != null && typeof r === "object")
+    .slice(0, 20)
+    .map((r) => ({
+      questionId: sanitizeLine(String(r.questionId ?? "")).slice(0, 30),
+      isCorrect: typeof r.isCorrect === "boolean" ? r.isCorrect : false,
+      feedback: sanitizeLine(String(r.feedback ?? "")).slice(0, 500),
+    }))
+    .filter((r) => r.questionId.length > 0);
 }
 
 function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
@@ -3423,7 +3533,7 @@ function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
     "",
     "MODE BEHAVIORS:",
     "- UNDERSTAND mode: Break down the assignment, decode instruction words, explain key concepts. Ask questions to check comprehension. NEVER provide a draft.",
-    "- PRACTICE mode: Coach through guided reasoning, mini-exercises, and comprehension checks. Test understanding before progression. NEVER provide a full draft.",
+    "- PRACTICE mode: Generate a structured quiz with a MIX of multiple-choice questions (MCQ) and short-answer questions that test the student's understanding of the assignment topic. Populate the practiceQuestions array. Also provide coaching message and check questions. NEVER provide a full draft.",
     "- DRAFT mode (UNLOCKED AT 50% UNDERSTANDING): Generate a professional, well-structured assignment incorporating the student's provided references with proper citations. Create publication-quality content that demonstrates mastery of the topic.",
     "",
     "PROFESSIONAL DRAFT MODE (50%+ Understanding):",
@@ -3434,6 +3544,17 @@ function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
     "- Structure with clear introduction, body paragraphs, and conclusion.",
     "- Address all marking criteria if provided.",
     "- Match the required word count if specified.",
+    "",
+    "DRAFT UNIQUENESS — CRITICAL:",
+    "Every draft MUST be unique even when the same assignment question is used. To guarantee this:",
+    "1. VARY THE ARGUMENT ANGLE: Choose a different thesis, perspective, or analytical lens each time. For example, one draft might argue from an ethical standpoint, another from a public health perspective, another from a patient-centred care angle.",
+    "2. VARY THE STRUCTURE: Rearrange body paragraph order, use different section headings, choose different numbers of sub-sections.",
+    "3. VARY EXAMPLES & CASE STUDIES: Use different clinical scenarios, patient demographics, ward settings, community contexts. Draw from different Zambian districts, hospitals, or health centres.",
+    "4. VARY VOCABULARY & PHRASING: Use synonym variation, different sentence structures, different transitional phrases. Avoid templated opening sentences.",
+    "5. VARY THE INTRODUCTION: Start with a different hook — a statistic, a definition, a clinical scenario, a policy context, a historical fact, or a rhetorical question.",
+    "6. VARY CITED EVIDENCE: When the student hasn't provided specific references, reference different (but real and plausible) topic areas, guidelines, or frameworks each time.",
+    "7. USE THE UNIQUENESS SEED: A unique seed is provided in each request. Let it influence your creative choices for angle, structure, and examples so no two drafts are alike.",
+    "8. NEVER produce a generic template. Every sentence must feel like it was written for THIS specific student's context.",
     citationGuidance,
     wordCountGuidance,
     readinessGuidance,
@@ -3457,11 +3578,91 @@ function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
     '  "understandingIndicators": string[] (signs of understanding)',
     '  "paraphrasingTips": string[] (how to express ideas originally)',
     '  "estimatedReadiness": number (0-100, based on demonstrated understanding)',
+    '  "topicsCovered": [  // ALWAYS return this — tracks which assignment topics have been taught',
+    '    {',
+    '      "topic": string (a key topic/concept from the assignment, e.g. "Maternal mortality causes", "Nursing ethics in Zambia")',
+    '      "status": "not_started" | "in_progress" | "covered" (not_started = not yet discussed, in_progress = partially explained, covered = student demonstrated understanding)',
+    '      "confidence": number (0-100, how well the student grasps this specific topic based on their responses)',
+    '    }',
+    '  ]',
+    '  "practiceQuestions": [  // REQUIRED in practice mode, optional otherwise',
+    '    {',
+    '      "id": string (e.g. "q1", "q2"...)',
+    '      "type": "mcq" | "short_answer",',
+    '      "question": string (clear question based on the assignment topic)',
+    '      "options": [ { "label": "A", "text": "option text" }, ... ]  // ONLY for mcq, provide 4 options',
+    '      "correctAnswer": string (for mcq: the label e.g. "B"; for short_answer: ideal answer text)',
+    '      "explanation": string (why this is the correct answer, educational)',
+    '    }',
+    '  ]',
+    '  "assignmentQuestions": [  // Detected sub-questions from the assignment brief',
+    '    {',
+    '      "id": string (e.g. "aq1", "aq2"...)',
+    '      "questionNumber": number (1, 2, 3...)',
+    '      "questionText": string (the full text of the sub-question)',
+    '      "marks": number | null (mark allocation if specified)',
+    '      "topic": string (brief topic label, e.g. "Maternal mortality causes")',
+    '    }',
+    '  ]',
+    '  "quizResults": [  // Return ONLY when grading student quiz answers (student message includes their answers)',
+    '    {',
+    '      "questionId": string (matching the quiz question id, e.g. "q1", "q2")',
+    '      "isCorrect": boolean (true if the student demonstrated understanding)',
+    '      "feedback": string (specific feedback — what was right, what to improve)',
+    '    }',
+    '  ]',
     '}',
+    '',
+    'QUIZ ANSWER GRADING RULES:',
+    '- When the student submits quiz answers (their message includes answers to quiz questions), you MUST grade them:',
+    '  1. Return a quizResults array with one entry per question the student answered.',
+    '  2. For MCQs: compare the student\'s selected option with the correctAnswer. Mark isCorrect = true if they match.',
+    '  3. For short answers: assess whether the response demonstrates genuine understanding of the concept. Do NOT require exact wording — look for key concepts and reasoning.',
+    '  4. Provide specific, educational feedback for each answer explaining what was right or what needs improvement.',
+    '  5. Update estimatedReadiness based on quiz performance:',
+    '     - ≥70% correct answers → increase readiness significantly (aim for 55-65%)',
+    '     - ≥50% correct → increase readiness moderately (aim for 45-55%)',
+    '     - <50% correct → keep readiness lower and generate NEW practiceQuestions for retry',
+    '  6. If readiness reaches ≥50% after grading, set suggestedMode to "draft", readyForDraft to true, and do NOT generate new practiceQuestions.',
+    '  7. If student needs more practice (readiness < 50%), generate new practiceQuestions targeting their weak areas.',
+    '  8. ALWAYS provide encouraging, specific feedback in coachingMessage summarizing overall performance.',
+    '  9. Update topicsCovered based on which quiz topics the student answered correctly.',
+    '',
+    'PRACTICE MODE QUESTION RULES:',
+    '- Generate 6-8 questions: mix of ~4 MCQ and ~3 short-answer.',
+    '- MCQ questions must have exactly 4 options labelled A, B, C, D.',
+    '- Short-answer correctAnswer should be a concise model answer (1-3 sentences).',
+    '- Questions must directly test understanding of the specific assignment topic.',
+    '- Vary difficulty: some recall, some application, some analysis.',
+    '- Each explanation should teach WHY the answer is correct.',
+    '',
+    'TOPIC COVERAGE TRACKING RULES:',
+    '- On EVERY response, analyze the assignment brief and return a topicsCovered array listing ALL key topics/concepts the student needs to master.',
+    '- On the first interaction (understand mode), identify all major topics from the brief and return them as "not_started" with confidence 0.',
+    '- As the conversation progresses, update each topic status based on what has been discussed:',
+    '  - "not_started": topic has not been discussed yet',
+    '  - "in_progress": topic has been explained but student has not demonstrated understanding',
+    '  - "covered": student has answered questions correctly or shown clear comprehension',
+    '- Update the confidence score (0-100) for each topic based on quiz answers, student responses, and engagement.',
+    '- When ALL topics reach "covered" status (or average confidence >= 70), the student is ready for a professional draft.',
+    '- Include 4-10 topics that capture the full scope of the assignment.',
+    '',
+    'MULTI-QUESTION DETECTION RULES:',
+    '- Analyze the assignment instructions to detect if there are MULTIPLE distinct questions or sub-parts the student must answer.',
+    '- Look for numbered lists (1. 2. 3.), lettered parts (a) b) c)), roman numerals (i. ii. iii.), bullet points with distinct questions, or phrases like "Answer ALL questions", "Section A / Section B".',
+    '- If the assignment contains multiple questions, populate the assignmentQuestions array.',
+    '- Each detected question should have: id (e.g. "aq1"), questionNumber, questionText (the full text of that sub-question), marks (if specified, else null), topic (brief topic label).',
+    '- If there is only ONE question or the brief is a single open-ended task, return an EMPTY assignmentQuestions array.',
+    '- When focusQuestionId is provided in the request, focus ALL your coaching, quiz questions, and draft content on THAT specific sub-question only.',
+    '- When no focusQuestionId is provided and there are multiple questions, provide a general overview and encourage the student to focus on one question at a time.',
   ].filter(Boolean).join("\n");
+
+  // Generate a unique seed per request to force draft variation
+  const uniqueSeed = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
   const userPrompt = [
     `Requested mode: ${input.mode}`,
+    `Uniqueness seed: ${uniqueSeed}`,
     `Understanding score: ${input.understandingScore ?? 0}%${input.understandingScore && input.understandingScore >= 50 ? " (DRAFT MODE UNLOCKED - generate professional assignment)" : ""}`,
     `Assignment title: ${input.assignmentTitle?.trim() || "Not provided"}`,
     `Programme: ${input.programme?.trim() || "Not provided"}`,
@@ -3470,6 +3671,7 @@ function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
     input.wordCount ? `Target word count: ${input.wordCount}` : "",
     input.citationStyle ? `Citation style required: ${input.citationStyle.toUpperCase()}` : "",
     input.dueDate ? `Due date: ${input.dueDate}` : "",
+    input.focusQuestionId ? `\nFOCUS QUESTION: The student is focusing on sub-question "${input.focusQuestionId}". Tailor ALL coaching, quiz questions, and draft content to THIS specific question only. Still return the full assignmentQuestions array so the UI can show navigation.` : "",
     "",
     "Assignment instructions:",
     clipAssignmentSupportText(input.assignmentInstructions, 9000),
@@ -3495,6 +3697,11 @@ function buildAssignmentSupportPrompt(input: AssignmentSupportInput) {
           "- Include a formatted reference list at the end.",
           `- Target ${input.wordCount ?? 1500} words.`,
           "- Make it publication-quality and ready for submission.",
+          "",
+          `UNIQUENESS SEED: ${uniqueSeed}`,
+          "- This seed MUST influence your creative choices. Use it to select a UNIQUE argument angle, unique opening hook, unique examples, unique paragraph ordering, and unique phrasing.",
+          "- If you have generated a draft for a similar question before, this draft MUST take a completely different approach.",
+          "- Vary: thesis angle, introduction style, body paragraph order, clinical examples, district/facility names, transitional phrases, conclusion framing.",
         ].join("\n")
       : [
           "RESPONSE RULES (Understanding Mode):",
@@ -3577,6 +3784,15 @@ function buildAssignmentSupportFallback(
         "Start sentences differently than the original source",
       ],
       estimatedReadiness: 15,
+      topicsCovered: [
+        { topic: "Understanding the assignment question", status: "in_progress" as const, confidence: 15 },
+        { topic: "Key concepts and definitions", status: "not_started" as const, confidence: 0 },
+        { topic: "Structure and organisation", status: "not_started" as const, confidence: 0 },
+        { topic: "Evidence and referencing", status: "not_started" as const, confidence: 0 },
+      ],
+      practiceQuestions: [],
+      assignmentQuestions: [],
+      quizResults: [],
       provider: "azure",
       model: "fallback-local-template",
     };
@@ -3586,16 +3802,16 @@ function buildAssignmentSupportFallback(
     return {
       stage: "practice",
       coachingMessage:
-        "Before we write the final answer, test your understanding by answering the check questions and sketching one paragraph idea for each main section. This helps make sure you truly grasp the concepts rather than just copying.",
+        "Test your understanding of the assignment by answering these questions. You need a mix of knowledge recall and applied thinking to unlock draft generation.",
       learningFocus: [
         "Reasoning through the assignment step by step",
         "Using clear topic sentences",
         "Linking ideas back to the question",
       ],
       nextSteps: [
-        "Answer the check questions in your own words.",
-        "Draft bullet points for each section of the outline.",
-        "Share your rough attempt so I can help improve it.",
+        "Answer all quiz questions below.",
+        "Review the explanations for any wrong answers.",
+        "Once you reach 50% understanding, you can generate a draft.",
       ],
       checkQuestions: [
         "What is your strongest main argument or explanation?",
@@ -3606,7 +3822,6 @@ function buildAssignmentSupportFallback(
       draftResponse: "",
       readyForDraft: false,
       suggestedMode: "draft",
-      // Enhanced pedagogy fields
       conceptsExplained: [
         "How to build an argument step by step",
         "Connecting theory to practical examples",
@@ -3637,6 +3852,71 @@ function buildAssignmentSupportFallback(
         "Avoid copying the assignment wording in your answer",
       ],
       estimatedReadiness: 45,
+      topicsCovered: [
+        { topic: "Understanding the assignment question", status: "covered" as const, confidence: 70 },
+        { topic: "Key concepts and definitions", status: "in_progress" as const, confidence: 40 },
+        { topic: "Structure and organisation", status: "in_progress" as const, confidence: 35 },
+        { topic: "Evidence and referencing", status: "not_started" as const, confidence: 10 },
+      ],
+      practiceQuestions: [
+        {
+          id: "q1",
+          type: "mcq" as const,
+          question: `What is the main task this ${focusLabel} assignment is asking you to do?`,
+          options: [
+            { label: "A", text: "List everything you know about the topic" },
+            { label: "B", text: "Analyse and explain the specific question asked" },
+            { label: "C", text: "Copy definitions from the textbook" },
+            { label: "D", text: "Write a personal opinion without evidence" },
+          ],
+          correctAnswer: "B",
+          explanation: "Assignments require you to address the specific question with analysis and evidence, not just list facts or give unsupported opinions.",
+        },
+        {
+          id: "q2",
+          type: "mcq" as const,
+          question: "Which of the following best describes academic paraphrasing?",
+          options: [
+            { label: "A", text: "Copying the source word-for-word with quotation marks" },
+            { label: "B", text: "Changing a few words using a thesaurus" },
+            { label: "C", text: "Re-expressing the idea in your own words while keeping the meaning" },
+            { label: "D", text: "Removing the reference so it looks like your own idea" },
+          ],
+          correctAnswer: "C",
+          explanation: "Paraphrasing means re-expressing ideas in your own language and sentence structure while accurately preserving the original meaning and citing the source.",
+        },
+        {
+          id: "q3",
+          type: "short_answer" as const,
+          question: `In your own words, what is the key concept this assignment about ${title} expects you to explain?`,
+          options: [],
+          correctAnswer: "The student should identify and explain the central concept from the assignment brief in their own words, showing genuine understanding rather than repeating the question.",
+          explanation: "Being able to restate the core concept in your own words demonstrates you understand what the assignment is asking.",
+        },
+        {
+          id: "q4",
+          type: "mcq" as const,
+          question: "What makes a strong conclusion in an academic assignment?",
+          options: [
+            { label: "A", text: "Introducing new information not discussed in the body" },
+            { label: "B", text: "Summarising key arguments and linking back to the question" },
+            { label: "C", text: "Simply restating the introduction word-for-word" },
+            { label: "D", text: "Adding your personal feelings about the topic" },
+          ],
+          correctAnswer: "B",
+          explanation: "A strong conclusion summarises your key arguments, reinforces your main points, and directly answers the assignment question without introducing new material.",
+        },
+        {
+          id: "q5",
+          type: "short_answer" as const,
+          question: "Give one specific example or practical point you would use to support your main argument in this assignment.",
+          options: [],
+          correctAnswer: "The student should provide a relevant, specific example from their studies, clinical experience, or course materials that directly supports their main argument.",
+          explanation: "Using specific examples shows deeper understanding and moves your writing beyond general statements.",
+        },
+      ],
+      assignmentQuestions: [],
+      quizResults: [],
       provider: "azure",
       model: "fallback-local-template",
     };
@@ -3708,6 +3988,15 @@ function buildAssignmentSupportFallback(
       "Read your final draft aloud - does it sound like you?",
     ],
     estimatedReadiness: 75,
+    topicsCovered: [
+      { topic: "Understanding the assignment question", status: "covered" as const, confidence: 90 },
+      { topic: "Key concepts and definitions", status: "covered" as const, confidence: 75 },
+      { topic: "Structure and organisation", status: "covered" as const, confidence: 70 },
+      { topic: "Evidence and referencing", status: "in_progress" as const, confidence: 55 },
+    ],
+    practiceQuestions: [],
+    assignmentQuestions: [],
+    quizResults: [],
     provider: "azure",
     model: "fallback-local-template",
   };

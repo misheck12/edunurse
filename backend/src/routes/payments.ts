@@ -377,6 +377,43 @@ const paymentRoutes: FastifyPluginAsync = async (app) => {
         }).catch((err) => {
           app.log.error({ error: err }, "Failed to send payment confirmation email");
         });
+
+        // ── Referral commission ───────────────────────────────────────
+        try {
+          const payingUser = await app.prisma.user.findUnique({
+            where: { id: transaction.userId },
+            select: { referredByUserId: true },
+          });
+
+          if (payingUser?.referredByUserId) {
+            const COMMISSION_RATE = 0.1; // 10 %
+            const commissionCents = Math.round(transaction.amountCents * COMMISSION_RATE);
+
+            await app.prisma.referral.create({
+              data: {
+                referrerUserId: payingUser.referredByUserId,
+                referredUserId: transaction.userId,
+                transactionId: transaction.id,
+                commissionCents,
+                currency: transaction.currency,
+                status: "earned",
+              },
+            });
+
+            app.log.info(
+              {
+                referrer: payingUser.referredByUserId,
+                referred: transaction.userId,
+                commissionCents,
+              },
+              "Referral commission credited"
+            );
+          }
+        } catch (refErr) {
+          // Non-blocking – don't fail the webhook for referral issues
+          app.log.error({ error: refErr }, "Failed to create referral commission");
+        }
+        // ── End referral commission ──────────────────────────────────
       }
 
       // Handle failed payment

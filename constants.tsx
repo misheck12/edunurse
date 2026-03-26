@@ -35,6 +35,8 @@ interface SidebarItem {
   icon: LucideIcon | null;
   path: string | null;
   feature?: FeatureKey;
+  /** Hidden from navigation — flip to false to re-enable */
+  comingSoon?: boolean;
 }
 
 export const SIDEBAR_ITEMS: SidebarItem[] = [
@@ -48,21 +50,21 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   { name: 'Curriculum AI', icon: BrainCircuit, path: '/curriculum', feature: 'curriculum_ai' },
   { name: 'Assignments', icon: GraduationCap, path: '/assignment-support', feature: 'assignments' },
   
-  // Study Tools Section
-  { name: 'section', label: 'Study Tools', icon: null, path: null },
-  { name: 'Drug Calculator', icon: Calculator, path: '/drug-calculator', feature: 'drug_calculator' },
-  { name: 'Clinical Cases', icon: Stethoscope, path: '/clinical-cases', feature: 'clinical_cases' },
-  { name: 'Procedures', icon: CheckSquare, path: '/procedures', feature: 'procedures' },
-  { name: 'Flashcards', icon: Layers, path: '/flashcards', feature: 'flashcards' },
-  { name: 'Medical Terms', icon: Languages, path: '/medical-terms', feature: 'medical_terms' },
-  { name: 'Resources', icon: BookMarked, path: '/resources', feature: 'resources' },
+  // Study Tools Section — coming soon (flip comingSoon to re-enable)
+  { name: 'section', label: 'Study Tools', icon: null, path: null, comingSoon: true },
+  { name: 'Drug Calculator', icon: Calculator, path: '/drug-calculator', feature: 'drug_calculator', comingSoon: true },
+  { name: 'Clinical Cases', icon: Stethoscope, path: '/clinical-cases', feature: 'clinical_cases', comingSoon: true },
+  { name: 'Procedures', icon: CheckSquare, path: '/procedures', feature: 'procedures', comingSoon: true },
+  { name: 'Flashcards', icon: Layers, path: '/flashcards', feature: 'flashcards', comingSoon: true },
+  { name: 'Medical Terms', icon: Languages, path: '/medical-terms', feature: 'medical_terms', comingSoon: true },
+  { name: 'Resources', icon: BookMarked, path: '/resources', feature: 'resources', comingSoon: true },
   
   // Exam & Career Section
   { name: 'section', label: 'Exam & Career', icon: null, path: null },
-  { name: 'Clinical Logbook', icon: ClipboardList, path: '/logbook', feature: 'clinical_logbook' },
   { name: 'NMC Exam Prep', icon: Target, path: '/exam-prep', feature: 'nmc_exam_prep' },
-  { name: 'OSCE Practice', icon: Activity, path: '/osce', feature: 'osce_practice' },
-  { name: 'Career', icon: Briefcase, path: '/career', feature: 'career' },
+  { name: 'Clinical Logbook', icon: ClipboardList, path: '/logbook', feature: 'clinical_logbook', comingSoon: true },
+  { name: 'OSCE Practice', icon: Activity, path: '/osce', feature: 'osce_practice', comingSoon: true },
+  { name: 'Career', icon: Briefcase, path: '/career', feature: 'career', comingSoon: true },
   
   // Settings Section
   { name: 'section', label: null, icon: null, path: null },

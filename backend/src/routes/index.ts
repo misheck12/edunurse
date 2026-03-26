@@ -21,6 +21,8 @@ import adminSettingsRoutes from "./admin-settings.js";
 import adminNotificationRoutes from "./admin-notifications.js";
 import chatRoutes from "./chat.js";
 import nmcExamRoutes from "./nmc-exam.js";
+import referralRoutes from "./referrals.js";
+import adminReferralRoutes from "./admin-referrals.js";
 
 export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoutes);
@@ -37,6 +39,7 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(adminAnalyticsRoutes, { prefix: "/admin/analytics" });
   await app.register(adminSettingsRoutes, { prefix: "/admin" });
   await app.register(adminNotificationRoutes, { prefix: "/admin" });
+  await app.register(adminReferralRoutes, { prefix: "/admin" });
   await app.register(userRoutes, { prefix: "/users" });
   await app.register(templateRoutes, { prefix: "/templates" });
   await app.register(documentRoutes, { prefix: "/documents" });
@@ -44,5 +47,6 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(assignmentSupportRoutes, { prefix: "/assignment-support" });
   await app.register(generationRoutes, { prefix: "/generation" });
   await app.register(nmcExamRoutes, { prefix: "/nmc-exam" });
+  await app.register(referralRoutes, { prefix: "/referrals" });
   await app.register(exportRoutes, { prefix: "/exports" });
 };

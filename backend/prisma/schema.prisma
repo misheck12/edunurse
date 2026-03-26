@@ -157,6 +157,12 @@ model User {
   transactions      Transaction[]
   chatConversations ChatConversation[]
   notificationLogs  NotificationLog[]
+  referralCode      String?           @unique @map("referral_code")
+  referredByUserId  String?           @map("referred_by_user_id") @db.Uuid
+  referredBy        User?             @relation("UserReferrals", fields: [referredByUserId], references: [id], onDelete: SetNull)
+  referredUsers     User[]            @relation("UserReferrals")
+  referralsEarned   Referral[]        @relation("ReferralEarner")
+  referralsUsed     Referral[]        @relation("ReferralPayer")
 
   @@map("users")
 }
@@ -222,6 +228,7 @@ model Transaction {
   createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscription          Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  referral              Referral?
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([subscriptionId, status])
@@ -835,4 +842,30 @@ model NotificationLog {
   @@index([channel, createdAt(sort: Desc)])
   @@index([status])
   @@map("notification_logs")
+}
+
+model Referral {
+  id              String            @id @default(uuid()) @db.Uuid
+  referrerUserId  String            @map("referrer_user_id") @db.Uuid
+  referredUserId  String            @map("referred_user_id") @db.Uuid
+  transactionId   String?           @unique @map("transaction_id") @db.Uuid
+  commissionCents Int               @map("commission_cents")
+  currency        String            @default("ZMW")
+  status          ReferralStatus    @default(pending)
+  paidOutAt       DateTime?         @map("paid_out_at") @db.Timestamptz(6)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  referrer        User              @relation("ReferralEarner", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred        User              @relation("ReferralPayer", fields: [referredUserId], references: [id], onDelete: Cascade)
+  transaction     Transaction?      @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([referrerUserId, createdAt(sort: Desc)])
+  @@index([referredUserId])
+  @@index([status])
+  @@map("referrals")
+}
+
+enum ReferralStatus {
+  pending
+  earned
+  paid_out
 }

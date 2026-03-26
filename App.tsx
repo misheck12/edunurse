@@ -38,6 +38,7 @@ import OpsServicesPage from './pages/ops/OpsServicesPage';
 import OpsSubscriptionsPage from './pages/ops/OpsSubscriptionsPage';
 import OpsPlansPage from './pages/ops/OpsPlansPage';
 import OpsTransactionsPage from './pages/ops/OpsTransactionsPage';
+import OpsReferralsPage from './pages/ops/OpsReferralsPage';
 import OpsAiPage from './pages/ops/OpsAiPage';
 import OpsSyllabusPage from './pages/ops/OpsSyllabusPage';
 import OpsSettingsPage from './pages/ops/OpsSettingsPage';
@@ -49,6 +50,7 @@ import { FeatureAccessProvider, FeatureGate } from './src/components/FeatureGate
 import RequireAdmin from './src/components/auth/RequireAdmin';
 import RequireClient from './src/components/auth/RequireClient';
 import PwaManager from './src/components/PwaManager';
+import ComingSoon from './src/components/ComingSoon';
 
 const OpsShell: React.FC = () => (
   <OpsLayout>
@@ -128,6 +130,14 @@ const OpsShell: React.FC = () => (
         }
       />
       <Route
+        path="/ops/referrals"
+        element={
+          <RequireAdmin>
+            <OpsReferralsPage />
+          </RequireAdmin>
+        }
+      />
+      <Route
         path="/ops/ai"
         element={
           <RequireAdmin>
@@ -186,45 +196,21 @@ const ClientShell: React.FC = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/help" element={<Help />} />
-          {/* Student Tools Routes */}
-          <Route path="/drug-calculator" element={<DrugCalculator />} />
-          <Route path="/clinical-cases" element={
-            <FeatureGate feature="clinical_cases">
-              <ClinicalCases />
-            </FeatureGate>
-          } />
-          <Route path="/procedures" element={
-            <FeatureGate feature="procedures">
-              <ProcedureChecklists />
-            </FeatureGate>
-          } />
-          <Route path="/flashcards" element={<Flashcards />} />
-          <Route path="/medical-terms" element={
-            <FeatureGate feature="medical_terms">
-              <MedicalTerms />
-            </FeatureGate>
-          } />
-          <Route path="/resources" element={<Resources />} />
-          <Route path="/logbook" element={
-            <FeatureGate feature="clinical_logbook">
-              <ClinicalLogbook />
-            </FeatureGate>
-          } />
+          {/* Student Tools Routes — coming soon */}
+          <Route path="/drug-calculator" element={<ComingSoon feature="Drug Calculator" />} />
+          <Route path="/clinical-cases" element={<ComingSoon feature="Clinical Cases" />} />
+          <Route path="/procedures" element={<ComingSoon feature="Procedure Checklists" />} />
+          <Route path="/flashcards" element={<ComingSoon feature="Flashcards" />} />
+          <Route path="/medical-terms" element={<ComingSoon feature="Medical Terminology" />} />
+          <Route path="/resources" element={<ComingSoon feature="Resources" />} />
+          <Route path="/logbook" element={<ComingSoon feature="Clinical Logbook" />} />
           <Route path="/exam-prep" element={
             <FeatureGate feature="nmc_exam_prep">
               <NMCExamPrep />
             </FeatureGate>
           } />
-          <Route path="/osce" element={
-            <FeatureGate feature="osce_practice">
-              <OSCEPractice />
-            </FeatureGate>
-          } />
-          <Route path="/career" element={
-            <FeatureGate feature="career">
-              <CareerPlacement />
-            </FeatureGate>
-          } />
+          <Route path="/osce" element={<ComingSoon feature="OSCE Practice" />} />
+          <Route path="/career" element={<ComingSoon feature="Career Placement" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

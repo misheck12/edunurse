@@ -43,6 +43,8 @@ const assignmentSupportRequestSchema = z.object({
   understandingScore: z.number().min(0).max(100).optional(),
   // Student-provided references
   references: z.array(referenceSchema).max(20).optional(),
+  // Multi-question support: which sub-question the student is focusing on
+  focusQuestionId: z.string().trim().min(1).max(50).optional(),
 });
 
 function toJson(value: unknown) {
@@ -64,6 +66,19 @@ function toPublicAssignmentSupportErrorMessage(rawMessage: string) {
 }
 
 const assignmentSupportRoutes: FastifyPluginAsync = async (app) => {
+  // Register content-type parsers for binary document uploads (PDF, DOCX).
+  // Without these Fastify returns 415 Unsupported Media Type for raw binary bodies.
+  const binaryMimeTypes = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+  ];
+  for (const mime of binaryMimeTypes) {
+    app.addContentTypeParser(mime, { parseAs: "buffer" }, (_req, body, done) => {
+      done(null, body);
+    });
+  }
+
   app.addHook("preHandler", async (request, reply) => {
     await requireCompleteProfile(request, reply, app.prisma);
   });

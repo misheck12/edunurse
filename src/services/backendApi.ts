@@ -1061,6 +1061,28 @@ export interface AssignmentSupportMessage {
   content: string;
 }
 
+export interface MCQOption {
+  label: string;
+  text: string;
+}
+
+export interface PracticeQuestion {
+  id: string;
+  type: "mcq" | "short_answer";
+  question: string;
+  options: MCQOption[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface AssignmentQuestion {
+  id: string;
+  questionNumber: number;
+  questionText: string;
+  marks: number | null;
+  topic: string;
+}
+
 export interface AssignmentSupportResponse {
   stage: AssignmentSupportMode;
   coachingMessage: string;
@@ -1081,6 +1103,22 @@ export interface AssignmentSupportResponse {
   understandingIndicators: string[];
   paraphrasingTips: string[];
   estimatedReadiness: number;
+  // Topic coverage tracking
+  topicsCovered: Array<{
+    topic: string;
+    status: "not_started" | "in_progress" | "covered";
+    confidence: number;
+  }>;
+  // Practice quiz questions
+  practiceQuestions: PracticeQuestion[];
+  // Quiz grading results from AI
+  quizResults: Array<{
+    questionId: string;
+    isCorrect: boolean;
+    feedback: string;
+  }>;
+  // Detected sub-questions from the assignment brief
+  assignmentQuestions: AssignmentQuestion[];
 }
 
 export interface AssignmentSupportReference {
@@ -1111,6 +1149,8 @@ export interface AssignmentSupportInput {
   understandingScore?: number;
   // Student-provided references
   references?: AssignmentSupportReference[];
+  // Multi-question support: which sub-question the student is focusing on
+  focusQuestionId?: string;
 }
 
 export function getAssignmentSupport(input: AssignmentSupportInput) {
@@ -2470,4 +2510,129 @@ export function getNotificationLogs(params?: {
 
 export function getNotificationStats() {
   return request<NotificationStats>("/admin/notifications/stats");
+}
+
+// ─── Admin Referral API (Ops) ──────────────────────────────────────────────
+
+export interface AdminReferralItem {
+  id: string;
+  referrerUserId: string;
+  referredUserId: string;
+  transactionId: string | null;
+  commissionCents: number;
+  currency: string;
+  status: "pending" | "earned" | "paid_out";
+  paidOutAt: string | null;
+  createdAt: string;
+  referrer: { id: string; email: string; fullName: string | null; referralCode: string | null };
+  referred: { id: string; email: string; fullName: string | null };
+  transaction: {
+    id: string;
+    amountCents: number;
+    currency: string;
+    status: string;
+    createdAt: string;
+  } | null;
+}
+
+export interface AdminReferralStats {
+  totalReferrals: number;
+  pendingCount: number;
+  earnedCount: number;
+  paidOutCount: number;
+  totalCommissionCents: number;
+  pendingCommissionCents: number;
+  paidOutCommissionCents: number;
+  totalReferredUsers: number;
+  topReferrers: Array<{
+    userId: string;
+    email: string;
+    fullName: string | null;
+    referralCode: string | null;
+    referralCount: number;
+    totalEarnedCents: number;
+  }>;
+}
+
+export interface ListAdminReferralsResponse {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: AdminReferralItem[];
+}
+
+export function getAdminReferralStats() {
+  return request<AdminReferralStats>("/admin/referrals/stats");
+}
+
+export function listAdminReferrals(input?: {
+  page?: number;
+  pageSize?: number;
+  status?: "pending" | "earned" | "paid_out";
+  referrerUserId?: string;
+  referredUserId?: string;
+  search?: string;
+}) {
+  const qp = new URLSearchParams();
+  if (input?.page) qp.set("page", String(input.page));
+  if (input?.pageSize) qp.set("pageSize", String(input.pageSize));
+  if (input?.status) qp.set("status", input.status);
+  if (input?.referrerUserId) qp.set("referrerUserId", input.referrerUserId);
+  if (input?.referredUserId) qp.set("referredUserId", input.referredUserId);
+  if (input?.search) qp.set("search", input.search);
+  const qs = qp.toString();
+  return request<ListAdminReferralsResponse>(`/admin/referrals${qs ? `?${qs}` : ""}`);
+}
+
+export function updateAdminReferral(
+  id: string,
+  input: { status?: "pending" | "earned" | "paid_out" },
+) {
+  return request<AdminReferralItem>(`/admin/referrals/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+// ─── Referral / Affiliate API ──────────────────────────────────────────────
+
+export interface ReferralCodeData {
+  referralCode: string;
+  shareUrl: string;
+}
+
+export interface ReferralItem {
+  id: string;
+  referredName: string;
+  referredEmail: string;
+  commissionCents: number;
+  currency: string;
+  status: "pending" | "earned" | "paid_out";
+  transactionAmount: number | null;
+  createdAt: string;
+}
+
+export interface ReferralEarningsData {
+  totalEarnedCents: number;
+  pendingCents: number;
+  paidOutCents: number;
+  currency: string;
+  referredUsersCount: number;
+  commissionRate: number;
+  referrals: ReferralItem[];
+}
+
+export function getMyReferralCode() {
+  return request<{ success: boolean; data: ReferralCodeData }>("/referrals/my-code");
+}
+
+export function getReferralEarnings() {
+  return request<{ success: boolean; data: ReferralEarningsData }>("/referrals/earnings");
+}
+
+export function applyReferralCode(referralCode: string) {
+  return request<{ success: boolean; message: string }>("/referrals/apply-code", {
+    method: "POST",
+    body: JSON.stringify({ referralCode }),
+  });
 }
