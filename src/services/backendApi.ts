@@ -333,12 +333,15 @@ async function request<T>(
     // Auto-redirect on expired / invalid token (unless this was a public request)
     if (response.status === 401 && authMode === "default") {
       clearAuthToken();
-      // Redirect to sign-in, preserving the current path for post-login redirect
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/signin")) {
-        const returnTo = encodeURIComponent(
-          window.location.pathname + window.location.search,
-        );
-        window.location.href = `/signin?returnTo=${returnTo}`;
+      if (typeof window !== "undefined") {
+        const path = window.location.pathname;
+        // Ops pages → redirect to ops login; client pages → redirect to client sign-in
+        if (path.startsWith("/ops") && path !== "/ops/login") {
+          window.location.href = "/ops/login";
+        } else if (!path.startsWith("/signin")) {
+          const returnTo = encodeURIComponent(path + window.location.search);
+          window.location.href = `/signin?returnTo=${returnTo}`;
+        }
       }
     }
 
