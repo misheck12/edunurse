@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
-import Fastify from "fastify";
+import Fastify, { type FastifyError } from "fastify";
 import { env } from "./config.js";
 import prismaPlugin from "./plugins/prisma.js";
 import requestContextPlugin from "./plugins/request-context.js";
@@ -54,9 +54,9 @@ export function buildApp() {
   void app.register(requestContextPlugin);
 
   // Global error handler — shapes Zod validation errors and prevents stack-trace leaks in production
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error: FastifyError, _request, reply) => {
     // Zod validation errors → 400 with structured messages
-    if (error.name === "ZodError" && "issues" in (error as Record<string, unknown>)) {
+    if (error.name === "ZodError" && "issues" in error) {
       const issues = (error as unknown as { issues: Array<{ path: (string | number)[]; message: string }> }).issues;
       const messages = issues.map(
         (i) => `${i.path.join(".") || "input"}: ${i.message}`,
