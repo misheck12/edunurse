@@ -335,12 +335,16 @@ async function request<T>(
       clearAuthToken();
       if (typeof window !== "undefined") {
         const path = window.location.pathname;
-        // Ops pages → redirect to ops login; client pages → redirect to client sign-in
-        if (path.startsWith("/ops") && path !== "/ops/login") {
-          window.location.href = "/ops/login";
-        } else if (!path.startsWith("/signin")) {
-          const returnTo = encodeURIComponent(path + window.location.search);
-          window.location.href = `/signin?returnTo=${returnTo}`;
+        const isAlreadyOnLogin = path === "/ops/login" || path.startsWith("/signin");
+        if (!isAlreadyOnLogin) {
+          if (path.startsWith("/ops")) {
+            // Ops pages → redirect to ops login
+            window.location.href = "/ops/login";
+          } else {
+            // Client pages → redirect to client sign-in
+            const returnTo = encodeURIComponent(path + window.location.search);
+            window.location.href = `/signin?returnTo=${returnTo}`;
+          }
         }
       }
     }
