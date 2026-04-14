@@ -829,19 +829,34 @@ const AssignmentSupport: React.FC = () => {
         title: assignmentTitle || "Assignment Draft",
         content: latestTurn.response.draftResponse,
         citationStyle: citationStyle ?? undefined,
+        studentName: user?.fullName ?? undefined,
+        studentNumber: user?.studentNumber ?? undefined,
+        school: user?.school ?? undefined,
+        course: course || undefined,
+        programme: programme || undefined,
+        dueDate: dueDate || undefined,
+        wordCount: wordCount ?? undefined,
+        references: references.length > 0 ? references.map(r => ({
+          type: r.type,
+          title: r.title,
+          authors: r.authors,
+          year: r.year,
+          source: r.source,
+          url: r.url,
+        })) : undefined,
       });
       
-      // Download the file
+      // Download the file directly
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${(assignmentTitle || "Assignment_Draft").slice(0, 50).replace(/[^a-zA-Z0-9]/g, "_")}_draft.docx`;
+      link.download = `${(assignmentTitle || "Assignment").slice(0, 50).replace(/[^a-zA-Z0-9]/g, "_")}.docx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      setNotice("Draft exported to Word document. Remember to review and personalize it!");
+      setNotice("Assignment exported as Word document. Review and personalise before submission.");
     } catch (exportError) {
       setError(
         exportError instanceof Error 
@@ -952,8 +967,8 @@ const AssignmentSupport: React.FC = () => {
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
       <SEO
-        title="Assignment Support"
-        description="Share an assignment brief, learn it step by step with guided teaching, and build a final assignment draft with confidence."
+        title="Assignment Studio"
+        description="Upload your assignment, learn the topics, pass a quiz, and get a professionally formatted draft — all automated."
         canonicalPath="/assignment-support"
       />
 
@@ -974,8 +989,8 @@ const AssignmentSupport: React.FC = () => {
               <GraduationCap size={20} className="text-blue-600" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900">Assignment Support</h1>
-              <p className="text-xs text-slate-500">Upload → Learn → Quiz → Assignment — fully automated</p>
+              <h1 className="text-lg font-bold text-slate-900">Assignment Studio</h1>
+              <p className="text-xs text-slate-500">Upload → Learn → Quiz → Download</p>
             </div>
           </div>
 
@@ -991,7 +1006,7 @@ const AssignmentSupport: React.FC = () => {
                 }`}
               >
                 <GraduationCap size={13} />
-                Support
+                Studio
               </button>
               <button
                 onClick={() => setView("chat")}
@@ -1115,24 +1130,6 @@ const AssignmentSupport: React.FC = () => {
         <ChatPanel context="general" />
       ) : (
       <>
-        {/* How it works — compact tip */}
-        {showIntegrityPanel && (
-          <div className="mb-4 flex items-center gap-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 px-4 py-3">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
-              <Shield size={14} className="text-blue-500" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-blue-800">How it works</p>
-              <p className="text-[11px] text-blue-600/80">
-                Upload your assignment → Topics are explained → <strong>Quiz</strong> tests your understanding → Answers are marked → <strong>Draft</strong> is generated automatically
-              </p>
-            </div>
-            <button type="button" onClick={() => setShowIntegrityPanel(false)} className="rounded-lg p-1 text-blue-300 hover:bg-blue-100 hover:text-blue-500">
-              <XCircle size={15} />
-            </button>
-          </div>
-        )}
-
         {/* Error & Notice */}
         {(error || notice) && (
           <div className="mb-4 space-y-2">
@@ -1422,9 +1419,8 @@ const AssignmentSupport: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Action Steps ── */}
-        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {/* Step 1: Understand */}
+        {/* ── Action Bar ── */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void sendSupportRequest("understand", focusedQuestion
@@ -1432,31 +1428,16 @@ const AssignmentSupport: React.FC = () => {
               : "Explain this assignment in simpler words and break down what it is asking me to do."
             )}
             disabled={!canSubmit || loading}
-            className={`group relative rounded-2xl border-2 p-4 text-left transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
               estimatedReadiness >= 30
-                ? "border-green-200 bg-green-50/40 hover:border-green-300"
-                : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/20"
+                ? "border border-green-200 bg-green-50 text-green-700"
+                : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
           >
-            {estimatedReadiness >= 30 && (
-              <CheckCircle2 size={15} className="absolute right-3 top-3 text-green-500" />
-            )}
-            <div className={`mb-2.5 inline-flex rounded-xl p-2.5 ${estimatedReadiness >= 30 ? "bg-green-100" : "bg-blue-50 group-hover:bg-blue-100"}`}>
-              {loading && mode === "understand"
-                ? <Loader2 size={20} className="animate-spin text-blue-600" />
-                : <BookOpen size={20} className={estimatedReadiness >= 30 ? "text-green-600" : "text-blue-500"} />
-              }
-            </div>
-            <p className="text-sm font-bold text-slate-800">1. Explain It</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Break down what the question is really asking</p>
-            {focusedQuestion && (
-              <p className="mt-2 truncate rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-600">
-                → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
-              </p>
-            )}
+            {loading && mode === "understand" ? <Loader2 size={14} className="animate-spin" /> : estimatedReadiness >= 30 ? <CheckCircle2 size={14} /> : <BookOpen size={14} />}
+            Explain It
           </button>
 
-          {/* Step 2: Practice */}
           <button
             type="button"
             onClick={() => void sendSupportRequest("practice", focusedQuestion
@@ -1464,31 +1445,16 @@ const AssignmentSupport: React.FC = () => {
               : "Coach me with questions so I can prove I understand before we draft."
             )}
             disabled={!canSubmit || loading}
-            className={`group relative rounded-2xl border-2 p-4 text-left transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
               estimatedReadiness >= 50
-                ? "border-green-200 bg-green-50/40 hover:border-green-300"
-                : "border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/20"
+                ? "border border-green-200 bg-green-50 text-green-700"
+                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             }`}
           >
-            {estimatedReadiness >= 50 && (
-              <CheckCircle2 size={15} className="absolute right-3 top-3 text-green-500" />
-            )}
-            <div className={`mb-2.5 inline-flex rounded-xl p-2.5 ${estimatedReadiness >= 50 ? "bg-green-100" : "bg-amber-50 group-hover:bg-amber-100"}`}>
-              {loading && mode === "practice"
-                ? <Loader2 size={20} className="animate-spin text-amber-600" />
-                : <ClipboardCheck size={20} className={estimatedReadiness >= 50 ? "text-green-600" : "text-amber-500"} />
-              }
-            </div>
-            <p className="text-sm font-bold text-slate-800">2. Quiz Me</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Test understanding with MCQ &amp; short-answer questions</p>
-            {focusedQuestion && (
-              <p className="mt-2 truncate rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-600">
-                → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
-              </p>
-            )}
+            {loading && mode === "practice" ? <Loader2 size={14} className="animate-spin" /> : estimatedReadiness >= 50 ? <CheckCircle2 size={14} /> : <ClipboardCheck size={14} />}
+            Quiz Me
           </button>
 
-          {/* Step 3: Draft */}
           <button
             type="button"
             onClick={() => void sendSupportRequest("draft", focusedQuestion
@@ -1496,42 +1462,23 @@ const AssignmentSupport: React.FC = () => {
               : `Create a professional assignment draft using my understanding and ${references.length > 0 ? `the ${references.length} references I provided` : "academic sources"}. Properly cite all sources in ${citationStyle || "APA"} format.`
             )}
             disabled={!canSubmit || loading || estimatedReadiness < 50}
-            title={estimatedReadiness < 50 ? `Unlock at 50% understanding (currently ${estimatedReadiness}%)` : "Generate professional draft with citations"}
-            className={`group relative rounded-2xl border-2 p-4 text-left transition-all disabled:cursor-not-allowed ${
+            title={estimatedReadiness < 50 ? `Unlock at 50% understanding (currently ${estimatedReadiness}%)` : "Generate professional draft"}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
               estimatedReadiness >= 50
-                ? "border-purple-200 bg-gradient-to-br from-purple-50/60 to-blue-50/60 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100 disabled:opacity-60"
-                : "border-dashed border-slate-300 bg-slate-50/50 opacity-75"
+                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-sm hover:from-purple-700 hover:to-blue-700"
+                : "border border-dashed border-slate-300 bg-slate-50 text-slate-400"
             }`}
           >
-            <div className={`mb-2.5 inline-flex rounded-xl p-2.5 ${estimatedReadiness >= 50 ? "bg-purple-100" : "bg-slate-100"}`}>
-              {loading && mode === "draft"
-                ? <Loader2 size={20} className="animate-spin text-purple-600" />
-                : estimatedReadiness >= 50
-                  ? <Sparkles size={20} className="text-purple-600" />
-                  : <PenSquare size={20} className="text-slate-400" />
-              }
-            </div>
-            <p className="text-sm font-bold text-slate-800">3. Generate Draft</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
-              {estimatedReadiness >= 50
-                ? `Professional assignment${references.length > 0 ? ` citing ${references.length} sources` : " with proper citations"}`
-                : `Locked — need ${50 - estimatedReadiness}% more understanding`
-              }
-            </p>
-            {estimatedReadiness < 50 && (
-              <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-700"
-                  style={{ width: `${Math.min(100, (estimatedReadiness / 50) * 100)}%` }}
-                />
-              </div>
-            )}
-            {focusedQuestion && estimatedReadiness >= 50 && (
-              <p className="mt-2 truncate rounded-md bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-600">
-                → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
-              </p>
-            )}
+            {loading && mode === "draft" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            Generate Draft
+            {estimatedReadiness < 50 && <span className="text-[10px] font-normal">({estimatedReadiness}/50%)</span>}
           </button>
+
+          {focusedQuestion && (
+            <span className="rounded-md bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-600">
+              → Q{focusedQuestion.questionNumber}{focusedQuestion.topic ? `: ${focusedQuestion.topic}` : ""}
+            </span>
+          )}
         </div>
 
         {/* ── Loading Banner ── */}
@@ -2053,100 +2000,55 @@ const AssignmentSupport: React.FC = () => {
           </section>
         )}
 
-        {/* ── Conversation (hidden when draft is ready or quiz is active) ── */}
+        {/* ── Conversation ── */}
         {!hasPracticeQuiz && !hasDraft && !isDraftGenerating && (
-        <section className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-800">Live Session</h2>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-500">
-              {formatModeLabel(mode)}
-            </span>
-          </div>
-
-          <div className="mb-3 max-h-[360px] space-y-2 overflow-y-auto rounded-lg bg-slate-50 p-3">
-            {thread.length === 0 && (
-              <div className="flex flex-col items-center gap-2 py-8">
-                <MessageCircle size={24} className="text-slate-200" />
-                <p className="text-xs font-medium text-slate-500">Your conversation with the tutor will appear here</p>
-                <p className="text-[10px] text-slate-400">
-                  Upload a document or paste your brief above to start the automatic teaching flow
-                </p>
-              </div>
-            )}
-
-            {thread.map((msg) => (
-              <div
-                key={msg.id}
-                className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm ${
-                  msg.role === "user"
-                    ? "ml-auto bg-blue-600 text-white"
-                    : "bg-white text-slate-700 shadow-sm"
-                }`}
-              >
-                <div className="mb-0.5 flex items-center justify-between text-[10px] uppercase tracking-wide">
-                  <span className="font-semibold">{msg.role === "user" ? "You" : "Tutor"}</span>
-                  <span className={msg.role === "user" ? "text-blue-200" : "text-slate-400"}>
-                    {formatModeLabel(msg.mode)}
-                  </span>
+        <section className="mb-5 rounded-xl border border-slate-200 bg-white shadow-sm">
+          {thread.length > 0 && (
+            <div className="max-h-[280px] space-y-2 overflow-y-auto border-b border-slate-100 p-4">
+              {thread.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`max-w-[85%] rounded-xl px-3.5 py-2 text-sm ${
+                    msg.role === "user"
+                      ? "ml-auto bg-blue-600 text-white"
+                      : "bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
                 </div>
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          <div className="relative">
+          <div className="flex items-center gap-2 p-3">
             <textarea
               value={followUp}
               onChange={(e) => setFollowUp(e.target.value)}
-              rows={3}
-              placeholder="Ask a follow-up, answer questions, or request feedback…"
-              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 pr-12 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              rows={1}
+              placeholder="Ask a follow-up question…"
+              className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
             />
             {voiceSupported && (
               <button
                 type="button"
                 onClick={isRecording ? stopVoiceInput : startVoiceInput}
-                className={`absolute right-2.5 top-2.5 rounded-lg p-1.5 transition-colors ${
+                className={`rounded-lg p-2 transition-colors ${
                   isRecording
-                    ? "bg-red-100 text-red-600 hover:bg-red-200"
+                    ? "bg-red-100 text-red-600"
                     : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                 }`}
-                title={isRecording ? "Stop recording" : "Voice input"}
               >
-                {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+                {isRecording ? <MicOff size={15} /> : <Mic size={15} />}
               </button>
             )}
-          </div>
-
-          <div className="mt-2.5 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => void sendSupportRequest(mode)}
               disabled={!canSubmit}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              Send
+              {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             </button>
-            <button
-              type="button"
-              onClick={() => void sendSupportRequest("practice", "Use checking questions to test if I really understand this assignment.")}
-              disabled={!canSubmit || loading}
-              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Practice Me
-            </button>
-            {estimatedReadiness >= 50 && (
-              <button
-                type="button"
-                onClick={() => void sendSupportRequest("draft", `Generate a professional assignment${references.length > 0 ? ` using my ${references.length} references` : ""}. Cite in ${citationStyle || "APA"} format.`)}
-                disabled={!canSubmit || loading}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
-              >
-                <Sparkles size={13} />
-                Generate Draft
-              </button>
-            )}
           </div>
         </section>
         )}
@@ -2196,7 +2098,7 @@ const AssignmentSupport: React.FC = () => {
                     className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
                   >
                     {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                    Export DOCX
+                    Download Assignment
                   </button>
                 </div>
               </div>
@@ -2271,36 +2173,14 @@ const AssignmentSupport: React.FC = () => {
 
           <div className="p-5">
             {!latestTurn ? (
-              <div className="py-8">
-                <div className="mb-6 text-center">
-                  <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100">
-                    <BrainCircuit size={28} className="text-blue-500" />
-                  </div>
-                  <p className="text-base font-semibold text-slate-700">Your assignment tutor</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Upload your assignment and the tutor will guide you through automatically
-                  </p>
+              <div className="flex flex-col items-center gap-3 py-10">
+                <div className="rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 p-3">
+                  <GraduationCap size={24} className="text-blue-500" />
                 </div>
-                <div className="mx-auto grid max-w-md grid-cols-3 gap-3">
-                  <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-center">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">1</div>
-                    <BookOpen size={16} className="text-blue-400" />
-                    <p className="text-[11px] font-semibold text-slate-700">Understand</p>
-                    <p className="text-[10px] leading-snug text-slate-400">Assignment topics explained clearly</p>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-center">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">2</div>
-                    <ClipboardCheck size={16} className="text-amber-400" />
-                    <p className="text-[11px] font-semibold text-slate-700">Quiz</p>
-                    <p className="text-[10px] leading-snug text-slate-400">Tests &amp; marks your answers</p>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 rounded-xl border border-purple-100 bg-purple-50/50 p-3 text-center">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">3</div>
-                    <Sparkles size={16} className="text-purple-400" />
-                    <p className="text-[11px] font-semibold text-slate-700">Draft</p>
-                    <p className="text-[10px] leading-snug text-slate-400">Auto-generates your assignment</p>
-                  </div>
-                </div>
+                <p className="text-sm font-semibold text-slate-700">Upload or paste your assignment brief to begin</p>
+                <p className="max-w-sm text-center text-xs text-slate-400">
+                  Your tutor will explain the topics, quiz your understanding, then generate a formatted draft automatically.
+                </p>
               </div>
             ) : (
               <div className="space-y-5">

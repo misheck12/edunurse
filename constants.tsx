@@ -48,7 +48,7 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   { name: 'Exports', icon: FileDown, path: '/exports' },
   { name: 'Templates', icon: FileText, path: '/templates', feature: 'templates' },
   { name: 'Curriculum AI', icon: BrainCircuit, path: '/curriculum', feature: 'curriculum_ai' },
-  { name: 'Assignments', icon: GraduationCap, path: '/assignment-support', feature: 'assignments' },
+  { name: 'Assignment Studio', icon: GraduationCap, path: '/assignment-support', feature: 'assignments' },
   
   // Study Tools Section — coming soon (flip comingSoon to re-enable)
   { name: 'section', label: 'Study Tools', icon: null, path: null, comingSoon: true },

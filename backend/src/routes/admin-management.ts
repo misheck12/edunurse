@@ -444,10 +444,10 @@ const adminManagementRoutes: FastifyPluginAsync = async (app) => {
         status: body.status,
         currentPeriodStart: body.currentPeriodStart
           ? new Date(body.currentPeriodStart)
-          : null,
+          : new Date(),
         currentPeriodEnd: body.currentPeriodEnd
           ? new Date(body.currentPeriodEnd)
-          : null,
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         cancelAtPeriodEnd: body.cancelAtPeriodEnd,
       },
       include: {

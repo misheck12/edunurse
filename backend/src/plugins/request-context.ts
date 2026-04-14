@@ -32,26 +32,30 @@ const requestContextPlugin: FastifyPluginAsync = async (app) => {
       return;
     }
 
-    const headerValue = request.headers["x-user-id"];
-    if (typeof headerValue === "string" && UUID_REGEX.test(headerValue)) {
-      request.currentUserId = headerValue;
-      request.user = {
-        sub: headerValue,
-        role: "student",
-      };
-
-      // Development fallback for non-authenticated local workflows.
-      await app.prisma.user.upsert({
-        where: { id: headerValue },
-        update: {},
-        create: {
-          id: headerValue,
-          email: `${headerValue}@dev.edunurse.local`,
-          passwordHash: "dev_only_replace_me",
-          fullName: "Development User",
+    // Development-only fallback for non-authenticated local workflows.
+    // CRITICAL: This must NEVER run in production — it allows unauthenticated
+    // access and auto-creates user records from an untrusted header.
+    if (process.env.NODE_ENV === "development") {
+      const headerValue = request.headers["x-user-id"];
+      if (typeof headerValue === "string" && UUID_REGEX.test(headerValue)) {
+        request.currentUserId = headerValue;
+        request.user = {
+          sub: headerValue,
           role: "student",
-        },
-      });
+        };
+
+        await app.prisma.user.upsert({
+          where: { id: headerValue },
+          update: {},
+          create: {
+            id: headerValue,
+            email: `${headerValue}@dev.edunurse.local`,
+            passwordHash: "dev_only_replace_me",
+            fullName: "Development User",
+            role: "student",
+          },
+        });
+      }
     }
   });
 };

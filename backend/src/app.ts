@@ -52,6 +52,38 @@ export function buildApp() {
   void app.register(sensible);
   void app.register(prismaPlugin);
   void app.register(requestContextPlugin);
+
+  // Global error handler — shapes Zod validation errors and prevents stack-trace leaks in production
+  app.setErrorHandler((error, _request, reply) => {
+    // Zod validation errors → 400 with structured messages
+    if (error.name === "ZodError" && "issues" in (error as Record<string, unknown>)) {
+      const issues = (error as unknown as { issues: Array<{ path: (string | number)[]; message: string }> }).issues;
+      const messages = issues.map(
+        (i) => `${i.path.join(".") || "input"}: ${i.message}`,
+      );
+      return reply.status(400).send({
+        statusCode: 400,
+        error: "Validation Error",
+        message: messages.join("; "),
+      });
+    }
+
+    // Fastify httpErrors (thrown via app.httpErrors.*) already have statusCode
+    const statusCode = error.statusCode ?? 500;
+    if (statusCode >= 500) {
+      app.log.error(error);
+    }
+
+    return reply.status(statusCode).send({
+      statusCode,
+      error: error.name ?? "InternalServerError",
+      message:
+        statusCode >= 500 && env.NODE_ENV === "production"
+          ? "Internal Server Error"
+          : error.message,
+    });
+  });
+
   void app.register(registerRoutes, { prefix: "/api/v1" });
 
   return app;

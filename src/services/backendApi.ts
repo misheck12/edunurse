@@ -330,6 +330,18 @@ async function request<T>(
   });
 
   if (!response.ok) {
+    // Auto-redirect on expired / invalid token (unless this was a public request)
+    if (response.status === 401 && authMode === "default") {
+      clearAuthToken();
+      // Redirect to sign-in, preserving the current path for post-login redirect
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/signin")) {
+        const returnTo = encodeURIComponent(
+          window.location.pathname + window.location.search,
+        );
+        window.location.href = `/signin?returnTo=${returnTo}`;
+      }
+    }
+
     let message = `Request failed with status ${response.status}`;
     try {
       const payload = (await response.json()) as
@@ -1191,6 +1203,21 @@ export async function exportAssignmentDraft(input: {
   title: string;
   content: string;
   citationStyle?: CitationStyle;
+  studentName?: string;
+  studentNumber?: string;
+  school?: string;
+  course?: string;
+  programme?: string;
+  dueDate?: string;
+  wordCount?: number;
+  references?: {
+    type: "book" | "journal" | "website" | "other";
+    title: string;
+    authors: string;
+    year: string;
+    source: string;
+    url?: string;
+  }[];
 }): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}/assignment-support/export-draft`, {
     method: "POST",

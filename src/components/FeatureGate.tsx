@@ -50,8 +50,8 @@ export const FEATURE_CONFIG: Record<FeatureKey, FeatureConfig> = {
   },
   assignments: {
     key: "assignments",
-    name: "Assignment Support",
-    description: "Get help with nursing assignments",
+    name: "Assignment Studio",
+    description: "Guided assignment writing with teaching, quizzes, and draft generation",
     minPlan: "pro",
   },
   templates: {

@@ -5,6 +5,7 @@ import mammoth from "mammoth";
 import { requireUserId } from "../services/auth-helpers.js";
 import { generateAssignmentSupportWithProviderFallback } from "../services/ai-layer.js";
 import { requireCompleteProfile } from "../services/profile-completion.js";
+import { buildAssignmentDocx } from "../services/assignment-export.js";
 import { ensureServiceEnabled } from "../services/service-controls.js";
 import { checkGenerationLimit } from "../services/usage-limits.js";
 
@@ -238,7 +239,7 @@ const assignmentSupportRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /**
-   * Export draft as DOCX
+   * Export draft as a properly formatted academic DOCX
    */
   app.post("/export-draft", async (request, reply) => {
     const userId = requireUserId(request);
@@ -246,138 +247,30 @@ const assignmentSupportRoutes: FastifyPluginAsync = async (app) => {
 
     const exportSchema = z.object({
       title: z.string().trim().min(1).max(200),
-      content: z.string().trim().min(10).max(20000),
+      content: z.string().trim().min(10).max(30000),
       citationStyle: citationStyleSchema.optional(),
+      studentName: z.string().trim().max(120).optional(),
+      studentNumber: z.string().trim().max(60).optional(),
+      school: z.string().trim().max(240).optional(),
+      course: z.string().trim().max(200).optional(),
+      programme: z.string().trim().max(200).optional(),
+      dueDate: z.string().trim().max(50).optional(),
+      wordCount: z.number().int().min(0).max(30000).optional(),
+      references: z.array(z.object({
+        type: z.enum(["book", "journal", "website", "other"]),
+        title: z.string().trim().min(1).max(500),
+        authors: z.string().trim().min(1).max(500),
+        year: z.string().trim().min(1).max(10),
+        source: z.string().trim().max(500).default(""),
+        url: z.string().trim().max(1000).optional(),
+      })).max(40).optional(),
     });
 
     const body = exportSchema.parse(request.body);
-
-    // Dynamic import for docx
-    const {
-      Document,
-      Packer,
-      Paragraph,
-      TextRun,
-      HeadingLevel,
-      AlignmentType,
-    } = await import("docx");
-
-    const paragraphs: InstanceType<typeof Paragraph>[] = [];
-
-    // Title
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: body.title,
-            bold: true,
-            size: 32,
-          }),
-        ],
-        heading: HeadingLevel.HEADING_1,
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 400 },
-      })
-    );
-
-    // Citation style note if provided
-    if (body.citationStyle) {
-      paragraphs.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `Citation Style: ${body.citationStyle.toUpperCase()}`,
-              italics: true,
-              size: 20,
-              color: "666666",
-            }),
-          ],
-          spacing: { after: 300 },
-        })
-      );
-    }
-
-    // Content paragraphs
-    const contentLines = body.content.split("\n");
-    for (const line of contentLines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) {
-        paragraphs.push(new Paragraph({ children: [], spacing: { after: 200 } }));
-        continue;
-      }
-
-      // Detect section headings (lines that are short and could be headers)
-      const isHeading =
-        trimmedLine.length < 80 &&
-        !trimmedLine.endsWith(".") &&
-        !trimmedLine.endsWith(",") &&
-        (trimmedLine.startsWith("Introduction") ||
-          trimmedLine.startsWith("Body") ||
-          trimmedLine.startsWith("Conclusion") ||
-          trimmedLine.startsWith("Main") ||
-          /^[A-Z]/.test(trimmedLine));
-
-      if (isHeading) {
-        paragraphs.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: trimmedLine,
-                bold: true,
-                size: 26,
-              }),
-            ],
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 300, after: 200 },
-          })
-        );
-      } else {
-        paragraphs.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: trimmedLine,
-                size: 24,
-              }),
-            ],
-            spacing: { after: 200, line: 360 },
-          })
-        );
-      }
-    }
-
-    // Academic integrity reminder
-    paragraphs.push(
-      new Paragraph({
-        children: [],
-        spacing: { before: 600 },
-      }),
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Note: This document is a draft scaffold generated with AI assistance. Please review carefully, add your own examples, verify all claims, and rewrite in your own voice before submission.",
-            italics: true,
-            size: 18,
-            color: "888888",
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-      })
-    );
-
-    const doc = new Document({
-      sections: [
-        {
-          properties: {},
-          children: paragraphs,
-        },
-      ],
-    });
-
-    const buffer = await Packer.toBuffer(doc);
+    const buffer = await buildAssignmentDocx(body);
 
     request.log.info(
-      { userId, titleLength: body.title.length, contentLength: body.content.length },
+      { userId, titleLength: body.title.length, contentLength: body.content.length, referencesCount: body.references?.length ?? 0 },
       "Assignment draft exported to DOCX"
     );
 
@@ -385,7 +278,7 @@ const assignmentSupportRoutes: FastifyPluginAsync = async (app) => {
       .header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
       .header(
         "Content-Disposition",
-        `attachment; filename="${encodeURIComponent(body.title.slice(0, 50))}_draft.docx"`
+        `attachment; filename="${encodeURIComponent(body.title.slice(0, 50))}_assignment.docx"`
       )
       .send(buffer);
   });

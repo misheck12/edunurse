@@ -51,6 +51,8 @@ import RequireAdmin from './src/components/auth/RequireAdmin';
 import RequireClient from './src/components/auth/RequireClient';
 import PwaManager from './src/components/PwaManager';
 import ComingSoon from './src/components/ComingSoon';
+import ErrorBoundary from './src/components/ErrorBoundary';
+import NotFound from './src/pages/NotFound';
 
 const OpsShell: React.FC = () => (
   <OpsLayout>
@@ -211,7 +213,7 @@ const ClientShell: React.FC = () => (
           } />
           <Route path="/osce" element={<ComingSoon feature="OSCE Practice" />} />
           <Route path="/career" element={<ComingSoon feature="Career Placement" />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Layout>
     </FeatureAccessProvider>
@@ -234,10 +236,15 @@ const ClientAuthShell: React.FC = () => (
 const AppRoutes: React.FC = () => {
   const location = useLocation();
   const isOpsPath = location.pathname.startsWith("/ops");
-  const isClientAuthPath =
-    location.pathname === "/signin" ||
-    location.pathname === "/signup" ||
-    location.pathname === "/login";
+  const clientAuthPaths = [
+    "/signin",
+    "/signup",
+    "/login",
+    "/forgot-password",
+    "/reset-password",
+    "/verify-email",
+  ];
+  const isClientAuthPath = clientAuthPaths.includes(location.pathname);
 
   if (isOpsPath) {
     return <OpsShell />;
@@ -256,12 +263,14 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <Router>
-      <AuthProvider>
-        <PwaManager />
-        <AppRoutes />
-      </AuthProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <PwaManager />
+          <AppRoutes />
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 };
 
