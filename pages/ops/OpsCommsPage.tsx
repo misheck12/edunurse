@@ -4,6 +4,7 @@ import {
   broadcastAdminNotification,
   getNotificationLogs,
   getNotificationStats,
+  retryFailedNotification,
   type NotificationChannel,
   type NotificationLogItem,
   type NotificationStats,
@@ -21,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  RotateCcw,
   Megaphone,
 } from "lucide-react";
 
@@ -347,7 +349,7 @@ function BroadcastPanel({
   const [channel, setChannel] = useState<NotificationChannel>("email");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | "educator" | "admin">("all");
+  const [filterRole, setFilterRole] = useState<"all" | "student" | "educator" | "admin">("all");
   const [sending, setSending] = useState(false);
   const [confirm, setConfirm] = useState(false);
 
@@ -418,6 +420,7 @@ function BroadcastPanel({
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
         >
           <option value="all">All active users</option>
+          <option value="student">Students only</option>
           <option value="educator">Educators only</option>
           <option value="admin">Admins only</option>
         </select>
@@ -497,6 +500,7 @@ function LogsPanel() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState<NotificationChannel | "all">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "sent" | "failed">("all");
 
@@ -516,6 +520,17 @@ function LogsPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRetry = async (logId: string) => {
+    setRetrying(logId);
+    try {
+      const result = await retryFailedNotification(logId);
+      if (result.success) {
+        void loadLogs();
+      }
+    } catch { /* best-effort */ }
+    setRetrying(null);
   };
 
   useEffect(() => {
@@ -575,6 +590,7 @@ function LogsPanel() {
                   <th className="px-4 py-3">Status</th>
                   <th className="hidden px-4 py-3 lg:table-cell">User</th>
                   <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -618,6 +634,23 @@ function LogsPanel() {
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                         {formatDate(log.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {log.status === "failed" && (
+                          <button
+                            onClick={() => void handleRetry(log.id)}
+                            disabled={retrying === log.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            title="Retry this notification"
+                          >
+                            {retrying === log.id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <RotateCcw size={12} />
+                            )}
+                            Retry
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

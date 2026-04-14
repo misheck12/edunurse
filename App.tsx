@@ -43,6 +43,7 @@ import OpsAiPage from './pages/ops/OpsAiPage';
 import OpsSyllabusPage from './pages/ops/OpsSyllabusPage';
 import OpsSettingsPage from './pages/ops/OpsSettingsPage';
 import OpsCommsPage from './pages/ops/OpsCommsPage';
+import OpsMarketingPage from './pages/ops/OpsMarketingPage';
 import { DocumentProvider } from './src/context/DocumentContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { UsageProvider } from './src/context/UsageContext';
@@ -152,6 +153,14 @@ const OpsShell: React.FC = () => (
         element={
           <RequireAdmin>
             <OpsCommsPage />
+          </RequireAdmin>
+        }
+      />
+      <Route
+        path="/ops/marketing"
+        element={
+          <RequireAdmin>
+            <OpsMarketingPage />
           </RequireAdmin>
         }
       />

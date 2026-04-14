@@ -189,6 +189,31 @@ const adminNotificationRoutes: FastifyPluginAsync = async (app) => {
 
     return { emailSent, smsSent, whatsappSent, totalFailed };
   });
+
+  // -----------------------------------------------------------------------
+  // POST /admin/notifications/retry/:id — retry a failed notification
+  // -----------------------------------------------------------------------
+  app.post("/notifications/retry/:id", async (request, reply) => {
+    const admin = await requireAdminUser(app, request);
+    const { id } = request.params as { id: string };
+
+    const logEntry = await prisma.notificationLog.findUnique({ where: { id } });
+    if (!logEntry) throw app.httpErrors.notFound("Notification log not found");
+    if (logEntry.status !== "failed") {
+      return reply.code(400).send({ success: false, message: "Only failed notifications can be retried." });
+    }
+
+    const result = await sendNotification({
+      channel: logEntry.channel as NotificationChannel,
+      recipient: logEntry.recipient,
+      subject: logEntry.subject ?? undefined,
+      body: logEntry.body,
+      userId: logEntry.userId ?? undefined,
+      sentBy: admin.id,
+    });
+
+    return reply.code(result.success ? 200 : 502).send(result);
+  });
 };
 
 export default adminNotificationRoutes;

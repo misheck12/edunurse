@@ -18,9 +18,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import {
-  getAuthToken,
   getMyReferralCode,
   getReferralEarnings,
+  getPaymentHistory,
   ReferralEarningsData,
 } from "../services/backendApi";
 import { useUsage } from "../context/UsageContext";
@@ -61,26 +61,9 @@ export const BillingSection: React.FC<BillingSectionProps> = ({
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const token = getAuthToken();
-      
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch recent transactions
-      const transactionsResponse = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/history`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (transactionsResponse.status !== 401) {
-        const transactionsData = await transactionsResponse.json();
-        if (transactionsData.success) {
-          setTransactions(transactionsData.data.slice(0, 5)); // Last 5 transactions
-        }
+      const result = await getPaymentHistory();
+      if (result.success) {
+        setTransactions(result.data.slice(0, 5)); // Last 5 transactions
       }
     } catch (err) {
       console.error("Failed to fetch billing data:", err);

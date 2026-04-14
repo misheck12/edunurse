@@ -8,6 +8,7 @@ import {
   Gift,
   LayoutDashboard,
   LogOut,
+  Mail,
   MessageSquare,
   Package,
   ReceiptText,
@@ -35,6 +36,7 @@ const navItems = [
   { to: "/ops/referrals", label: "Referrals", icon: Gift },
   { to: "/ops/ai", label: "AI Health", icon: BrainCircuit },
   { to: "/ops/communications", label: "Comms", icon: MessageSquare },
+  { to: "/ops/marketing", label: "Marketing", icon: Mail },
   { to: "/ops/settings", label: "Settings", icon: Settings },
 ];
 

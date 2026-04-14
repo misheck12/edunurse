@@ -23,6 +23,7 @@ import chatRoutes from "./chat.js";
 import nmcExamRoutes from "./nmc-exam.js";
 import referralRoutes from "./referrals.js";
 import adminReferralRoutes from "./admin-referrals.js";
+import adminMarketingRoutes from "./admin-marketing.js";
 
 export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(healthRoutes);
@@ -40,6 +41,7 @@ export const registerRoutes: FastifyPluginAsync = async (app) => {
   await app.register(adminSettingsRoutes, { prefix: "/admin" });
   await app.register(adminNotificationRoutes, { prefix: "/admin" });
   await app.register(adminReferralRoutes, { prefix: "/admin" });
+  await app.register(adminMarketingRoutes, { prefix: "/admin" });
   await app.register(userRoutes, { prefix: "/users" });
   await app.register(templateRoutes, { prefix: "/templates" });
   await app.register(documentRoutes, { prefix: "/documents" });

@@ -869,3 +869,54 @@ enum ReferralStatus {
   earned
   paid_out
 }
+
+// ---------------------------------------------------------------------------
+// Marketing Email Templates & Campaigns
+// ---------------------------------------------------------------------------
+
+enum EmailCampaignStatus {
+  draft
+  scheduled
+  sending
+  sent
+  failed
+}
+
+model EmailTemplate {
+  id          String          @id @default(uuid()) @db.Uuid
+  name        String
+  subject     String
+  htmlBody    String          @map("html_body")
+  category    String          @default("marketing") // marketing, transactional, onboarding
+  createdBy   String?         @map("created_by") @db.Uuid
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  campaigns   EmailCampaign[]
+
+  @@index([category, isActive])
+  @@map("email_templates")
+}
+
+model EmailCampaign {
+  id              String              @id @default(uuid()) @db.Uuid
+  name            String
+  templateId      String?             @map("template_id") @db.Uuid
+  subject         String
+  htmlBody        String              @map("html_body")
+  status          EmailCampaignStatus @default(draft)
+  audienceFilter  Json                @default("{}") @map("audience_filter") // { role?, planTier?, joinedAfter?, joinedBefore? }
+  scheduledAt     DateTime?           @map("scheduled_at") @db.Timestamptz(6)
+  sentAt          DateTime?           @map("sent_at") @db.Timestamptz(6)
+  totalRecipients Int                 @default(0) @map("total_recipients")
+  totalSent       Int                 @default(0) @map("total_sent")
+  totalFailed     Int                 @default(0) @map("total_failed")
+  createdBy       String?             @map("created_by") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  template        EmailTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([createdBy])
+  @@map("email_campaigns")
+}

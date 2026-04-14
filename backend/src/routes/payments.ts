@@ -18,8 +18,8 @@ import {
   sendLowCreditsWarningEmail,
 } from "../services/email.js";
 
-// Payment plans
-const PLANS = {
+// Fallback plans used when no DB plans exist yet
+const FALLBACK_PLANS = {
   monthly_subscription: {
     code: "monthly_sub",
     name: "Monthly Subscription",
@@ -86,6 +86,29 @@ const webhookSchema = z.object({
 });
 
 const paymentRoutes: FastifyPluginAsync = async (app) => {
+
+  /**
+   * Helper: resolve plan details from DB with fallback to hardcoded defaults.
+   * Returns { code, name, price, currency, limits } for the given planType.
+   */
+  async function resolvePlan(planType: "monthly_subscription" | "pay_as_you_go") {
+    const codeMap: Record<string, string> = {
+      monthly_subscription: "monthly_sub",
+      pay_as_you_go: "payg",
+    };
+    const dbPlan = await app.prisma.plan.findUnique({ where: { code: codeMap[planType] } });
+    if (dbPlan) {
+      return {
+        code: dbPlan.code,
+        name: dbPlan.name,
+        price: dbPlan.monthlyPriceCents / 100,
+        currency: "ZMW",
+        limits: dbPlan.limitsJson as Record<string, unknown>,
+      };
+    }
+    return FALLBACK_PLANS[planType];
+  }
+
   /**
    * POST /payments/initiate
    * Initiate a payment for subscription or PAYG
@@ -94,7 +117,7 @@ const paymentRoutes: FastifyPluginAsync = async (app) => {
     const userId = requireUserId(request);
 
     const body = initiatePaymentSchema.parse(request.body);
-    const plan = PLANS[body.planType];
+    const plan = await resolvePlan(body.planType);
 
     // Generate unique reference
     const reference = generatePaymentReference(
@@ -152,7 +175,7 @@ const paymentRoutes: FastifyPluginAsync = async (app) => {
               code: plan.code,
               name: plan.name,
               monthlyPriceCents: plan.price * 100,
-              limitsJson: plan.limits,
+              limitsJson: plan.limits as any,
             },
           });
         }
@@ -312,6 +335,15 @@ const paymentRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(200).send({ received: true });
       }
 
+      // Idempotency: skip if transaction already reached a terminal state
+      if (transaction.status === "succeeded" || transaction.status === "failed") {
+        app.log.info(
+          { reference: payload.data.reference, existingStatus: transaction.status },
+          "Webhook skipped — transaction already in terminal state",
+        );
+        return reply.code(200).send({ received: true, skipped: true });
+      }
+
       const newStatus =
         payload.data.status === "successful"
           ? "succeeded"
@@ -447,14 +479,17 @@ const paymentRoutes: FastifyPluginAsync = async (app) => {
 
   /**
    * GET /payments/plans
-   * Get available payment plans
+   * Get available payment plans — reads from DB, falls back to hardcoded defaults.
    */
   app.get("/plans", async (request, reply) => {
+    const monthlySub = await resolvePlan("monthly_subscription");
+    const payg = await resolvePlan("pay_as_you_go");
+
     return reply.code(200).send({
       success: true,
       data: {
         monthly_subscription: {
-          ...PLANS.monthly_subscription,
+          ...monthlySub,
           description: "Unlimited lesson plan generations and exports per month",
           features: [
             "Unlimited lesson plan generations",
@@ -464,7 +499,7 @@ const paymentRoutes: FastifyPluginAsync = async (app) => {
           ],
         },
         pay_as_you_go: {
-          ...PLANS.pay_as_you_go,
+          ...payg,
           description: "Pay only for what you need",
           features: [
             "2 lesson plan generations",

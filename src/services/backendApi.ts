@@ -2200,6 +2200,124 @@ export function updateAdminUser(
   });
 }
 
+// ─── User-Facing Payment / Subscription / Usage API ────────────────────────
+
+export interface PaymentPlan {
+  code: string;
+  name: string;
+  price: number;
+  currency: string;
+  description: string;
+  features: string[];
+}
+
+export interface PaymentPlansResponse {
+  monthly_subscription?: PaymentPlan;
+  pay_as_you_go?: PaymentPlan;
+}
+
+export function getPaymentPlans() {
+  return request<{ success: boolean; data: PaymentPlansResponse }>("/payments/plans");
+}
+
+export function initiatePayment(input: {
+  planType: "monthly_subscription" | "pay_as_you_go";
+  phone: string;
+  country?: string;
+}) {
+  return request<{
+    success: boolean;
+    data: { reference: string; status: string };
+    message?: string;
+  }>("/payments/initiate", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function verifyPaymentStatus(reference: string) {
+  return request<{
+    success: boolean;
+    data: {
+      reference: string;
+      status: string;
+      amount: number;
+      currency: string;
+      completedAt: string | null;
+    };
+  }>(`/payments/verify/${reference}`);
+}
+
+export interface PaymentHistoryItem {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  type: string;
+  createdAt: string;
+  processedAt: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export function getPaymentHistory() {
+  return request<{ success: boolean; data: PaymentHistoryItem[] }>("/payments/history");
+}
+
+export function getPaymentUsage() {
+  return request<{
+    success: boolean;
+    data: {
+      limits: Record<string, unknown>;
+      summary: Record<string, unknown>;
+    };
+  }>("/payments/usage");
+}
+
+export interface UserSubscription {
+  id: string;
+  planId: string;
+  status: string;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  plan: { id: string; code: string; name: string; monthlyPriceCents: number; limitsJson: Record<string, unknown> };
+}
+
+export function getCurrentSubscription() {
+  return request<{ subscription: UserSubscription | null }>("/subscriptions/current");
+}
+
+export function cancelSubscription() {
+  return request<{ message: string }>("/subscriptions/cancel", { method: "POST" });
+}
+
+export function reactivateSubscription() {
+  return request<{ message: string }>("/subscriptions/reactivate", { method: "POST" });
+}
+
+export function getBillingHistory() {
+  return request<{
+    transactions: Array<{
+      id: string;
+      amount: number;
+      currency: string;
+      status: string;
+      createdAt: string;
+      plan?: { name: string };
+    }>;
+  }>("/subscriptions/billing-history");
+}
+
+export function getSubscriptionFeatures() {
+  return request<{
+    features: Record<string, boolean>;
+    tier: string;
+    limits: Record<string, number>;
+  }>("/subscriptions/features");
+}
+
+// ─── Admin Plans, Subscriptions, Transactions ──────────────────────────────
+
 export interface AdminPlan {
   id: string;
   code: string;
@@ -2537,6 +2655,164 @@ export function getNotificationLogs(params?: {
 
 export function getNotificationStats() {
   return request<NotificationStats>("/admin/notifications/stats");
+}
+
+export function retryFailedNotification(logId: string) {
+  return request<NotificationResult>(`/admin/notifications/retry/${logId}`, {
+    method: "POST",
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin Marketing — Email Templates & Campaigns                      */
+/* ------------------------------------------------------------------ */
+
+export interface EmailTemplateItem {
+  id: string;
+  name: string;
+  subject: string;
+  htmlBody: string;
+  category: "marketing" | "transactional" | "onboarding";
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailCampaignItem {
+  id: string;
+  name: string;
+  templateId: string | null;
+  subject: string;
+  htmlBody: string;
+  status: "draft" | "scheduled" | "sending" | "sent" | "failed";
+  audienceFilter: Record<string, unknown>;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  totalRecipients: number;
+  totalSent: number;
+  totalFailed: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  template?: { id: string; name: string } | null;
+}
+
+export interface MarketingStats {
+  totalCampaigns: number;
+  sentCampaigns: number;
+  totalTemplates: number;
+  totalEmailsSent: number;
+  totalEmailsFailed: number;
+}
+
+// Templates
+export function listEmailTemplates(params?: { page?: number; pageSize?: number }) {
+  const qp = new URLSearchParams();
+  if (params?.page) qp.set("page", String(params.page));
+  if (params?.pageSize) qp.set("pageSize", String(params.pageSize));
+  const qs = qp.toString();
+  return request<{ page: number; pageSize: number; total: number; items: EmailTemplateItem[] }>(
+    `/admin/marketing/templates${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export function getEmailTemplate(id: string) {
+  return request<EmailTemplateItem>(`/admin/marketing/templates/${id}`);
+}
+
+export function createEmailTemplate(data: {
+  name: string;
+  subject: string;
+  htmlBody: string;
+  category?: "marketing" | "transactional" | "onboarding";
+}) {
+  return request<EmailTemplateItem>("/admin/marketing/templates", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateEmailTemplate(
+  id: string,
+  data: Partial<{ name: string; subject: string; htmlBody: string; category: string; isActive: boolean }>,
+) {
+  return request<EmailTemplateItem>(`/admin/marketing/templates/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteEmailTemplate(id: string) {
+  return request<{ success: boolean }>(`/admin/marketing/templates/${id}`, { method: "DELETE" });
+}
+
+// Campaigns
+export function listEmailCampaigns(params?: { page?: number; pageSize?: number }) {
+  const qp = new URLSearchParams();
+  if (params?.page) qp.set("page", String(params.page));
+  if (params?.pageSize) qp.set("pageSize", String(params.pageSize));
+  const qs = qp.toString();
+  return request<{ page: number; pageSize: number; total: number; items: EmailCampaignItem[] }>(
+    `/admin/marketing/campaigns${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export function getEmailCampaign(id: string) {
+  return request<EmailCampaignItem>(`/admin/marketing/campaigns/${id}`);
+}
+
+export function createEmailCampaign(data: {
+  name: string;
+  templateId?: string;
+  subject: string;
+  htmlBody: string;
+  audienceFilter?: Record<string, unknown>;
+  scheduledAt?: string;
+}) {
+  return request<EmailCampaignItem>("/admin/marketing/campaigns", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateEmailCampaign(
+  id: string,
+  data: Partial<{
+    name: string;
+    subject: string;
+    htmlBody: string;
+    audienceFilter: Record<string, unknown>;
+    scheduledAt: string | null;
+    status: string;
+  }>,
+) {
+  return request<EmailCampaignItem>(`/admin/marketing/campaigns/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function sendEmailCampaign(id: string) {
+  return request<{ success: boolean; total: number; sent: number; failed: number }>(
+    `/admin/marketing/campaigns/${id}/send`,
+    { method: "POST" },
+  );
+}
+
+export function previewEmailCampaign(id: string) {
+  return request<{ audienceCount: number; subject: string; previewHtml: string }>(
+    `/admin/marketing/campaigns/${id}/preview`,
+    { method: "POST" },
+  );
+}
+
+export function deleteEmailCampaign(id: string) {
+  return request<{ success: boolean }>(`/admin/marketing/campaigns/${id}`, { method: "DELETE" });
+}
+
+export function getMarketingStats() {
+  return request<MarketingStats>("/admin/marketing/stats");
 }
 
 // ─── Admin Referral API (Ops) ──────────────────────────────────────────────

@@ -16,7 +16,12 @@ import {
   XCircle,
   Clock,
 } from "lucide-react";
-import { getAuthToken, applyReferralCode } from "../services/backendApi";
+import {
+  applyReferralCode,
+  getPaymentPlans,
+  initiatePayment as initiatePaymentApi,
+  verifyPaymentStatus,
+} from "../services/backendApi";
 
 interface Plan {
   code: string;
@@ -66,12 +71,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const fetchPlans = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/plans`
-      );
-      const data = await response.json();
-      if (data.success) {
-        setPlans(data.data);
+      const result = await getPaymentPlans();
+      if (result.success) {
+        setPlans(result.data);
       }
     } catch (err) {
       console.error("Failed to fetch plans:", err);
@@ -103,33 +105,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setError(null);
 
     try {
-      const token = getAuthToken();
-      if (!token) {
-        setError("Please sign in to continue.");
-        return;
-      }
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/payments/initiate`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            planType: selectedPlan,
-            phone: phone,
-            country: "ZM",
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || `Payment failed: ${response.statusText}`);
-        return;
-      }
+      const data = await initiatePaymentApi({
+        planType: selectedPlan,
+        phone: phone,
+        country: "ZM",
+      });
 
       if (data.success) {
         setPaymentReference(data.data.reference);
@@ -161,20 +141,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
 
       try {
-        const token = getAuthToken();
-        if (!token) {
-          setPaymentStatus("failed");
-          setError("Session expired. Please sign in again.");
-          return;
-        }
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/payments/verify/${reference}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        const data = await response.json();
+        const data = await verifyPaymentStatus(reference);
 
         if (data.success) {
           setPaymentStatus(data.data.status);
