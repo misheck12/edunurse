@@ -1049,12 +1049,19 @@ export interface CurrentUserResponse {
   profileCompleted?: boolean;
   role: "student" | "educator" | "admin";
   isActive: boolean;
+  termsAcceptedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export function getCurrentUser() {
   return request<CurrentUserResponse>("/users/me");
+}
+
+export function acceptTerms() {
+  return request<{ success: boolean; termsAcceptedAt: string }>("/auth/accept-terms", {
+    method: "POST",
+  });
 }
 
 export function updateCurrentUser(input: {

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { env } from "../config.js";
 import { hashPassword, verifyPassword } from "../services/auth-password.js";
 import { signAuthToken } from "../services/auth-token.js";
+import { requireUserId } from "../services/auth-helpers.js";
 import { sendWelcomeEmail } from "../services/email.js";
 import {
   IDENTITY_DOCUMENT_ERROR_MESSAGE,
@@ -47,6 +48,7 @@ const authUserSelect = {
   profileCompleted: true,
   role: true,
   isActive: true,
+  termsAcceptedAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -175,6 +177,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         profileCompleted: true, // All required fields provided during signup
         role: "student",
         isActive: true,
+        termsAcceptedAt: new Date(),
         emailVerified: false,
         emailVerificationToken: verificationToken,
         emailVerificationExpiry: verificationExpiry,
@@ -263,6 +266,18 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       expiresInSeconds: env.AUTH_TOKEN_TTL_SECONDS,
       user: safeUser,
     };
+  });
+
+  // Accept Terms & Conditions and Privacy Policy
+  app.post("/accept-terms", async (request) => {
+    const userId = requireUserId(request);
+
+    await app.prisma.user.update({
+      where: { id: userId },
+      data: { termsAcceptedAt: new Date() },
+    });
+
+    return { success: true, termsAcceptedAt: new Date().toISOString() };
   });
 
   // Request email verification

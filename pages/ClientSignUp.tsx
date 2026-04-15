@@ -221,6 +221,26 @@ const ClientSignUp: React.FC = () => {
             />
           </label>
 
+          {/* Terms & Privacy checkbox */}
+          <label className="sm:col-span-2 flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              required
+              disabled={isSubmitting}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-slate-600">
+              I agree to the{" "}
+              <Link to="/terms" target="_blank" className="font-medium text-blue-600 hover:underline">
+                Terms and Conditions
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" target="_blank" className="font-medium text-blue-600 hover:underline">
+                Privacy Policy
+              </Link>
+            </span>
+          </label>
+
           <button
             type="submit"
             disabled={isSubmitting}

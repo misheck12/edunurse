@@ -52,6 +52,7 @@ const userRoutes: FastifyPluginAsync = async (app) => {
         profileCompleted: true,
         role: true,
         isActive: true,
+        termsAcceptedAt: true,
         createdAt: true,
         updatedAt: true,
       },

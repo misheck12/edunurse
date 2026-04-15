@@ -142,6 +142,7 @@ model User {
   emailVerificationExpiry DateTime?   @map("email_verification_expiry") @db.Timestamptz(6)
   passwordResetToken String?          @unique @map("password_reset_token")
   passwordResetExpiry DateTime?       @map("password_reset_expiry") @db.Timestamptz(6)
+  termsAcceptedAt   DateTime?         @map("terms_accepted_at") @db.Timestamptz(6)
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   preferences       UserPreference?

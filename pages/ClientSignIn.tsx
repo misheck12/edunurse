@@ -121,6 +121,12 @@ const ClientSignIn: React.FC = () => {
             Create one
           </Link>
         </div>
+
+        <div className="mt-3 text-center text-xs text-slate-400">
+          <Link to="/terms" className="hover:underline">Terms</Link>
+          {" · "}
+          <Link to="/privacy" className="hover:underline">Privacy</Link>
+        </div>
       </div>
     </div>
   );

@@ -50,10 +50,13 @@ import { UsageProvider } from './src/context/UsageContext';
 import { FeatureAccessProvider, FeatureGate } from './src/components/FeatureGate';
 import RequireAdmin from './src/components/auth/RequireAdmin';
 import RequireClient from './src/components/auth/RequireClient';
+import RequireTermsAcceptance from './src/components/auth/RequireTermsAcceptance';
 import PwaManager from './src/components/PwaManager';
 import ComingSoon from './src/components/ComingSoon';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import NotFound from './src/pages/NotFound';
+import TermsAndConditions from './pages/TermsAndConditions';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const OpsShell: React.FC = () => (
   <OpsLayout>
@@ -237,6 +240,8 @@ const ClientAuthShell: React.FC = () => (
     <Route path="/forgot-password" element={<ForgotPassword />} />
     <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/verify-email" element={<VerifyEmail />} />
+    <Route path="/terms" element={<TermsAndConditions />} />
+    <Route path="/privacy" element={<PrivacyPolicy />} />
     <Route path="/login" element={<Navigate to="/signin" replace />} />
     <Route path="*" element={<Navigate to="/signin" replace />} />
   </Routes>
@@ -252,6 +257,8 @@ const AppRoutes: React.FC = () => {
     "/forgot-password",
     "/reset-password",
     "/verify-email",
+    "/terms",
+    "/privacy",
   ];
   const isClientAuthPath = clientAuthPaths.includes(location.pathname);
 
@@ -265,7 +272,9 @@ const AppRoutes: React.FC = () => {
 
   return (
     <RequireClient>
-      <ClientShell />
+      <RequireTermsAcceptance>
+        <ClientShell />
+      </RequireTermsAcceptance>
     </RequireClient>
   );
 };
