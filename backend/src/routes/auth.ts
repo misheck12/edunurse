@@ -53,6 +53,19 @@ const authUserSelect = {
   updatedAt: true,
 } as const;
 
+function generateOneTimeToken() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+function hashOneTimeToken(token: string) {
+  return crypto.createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+function buildTokenLookupCandidates(token: string) {
+  const hashed = hashOneTimeToken(token);
+  return hashed === token ? [token] : [hashed, token];
+}
+
 const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/login", {
     config: {
@@ -161,7 +174,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Generate email verification token
-    const verificationToken = crypto.randomUUID();
+    const verificationToken = generateOneTimeToken();
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const createdUser = await app.prisma.user.create({
@@ -179,7 +192,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         isActive: true,
         termsAcceptedAt: new Date(),
         emailVerified: false,
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: hashOneTimeToken(verificationToken),
         emailVerificationExpiry: verificationExpiry,
       },
       select: authUserSelect,
@@ -299,13 +312,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Generate verification token
-    const verificationToken = crypto.randomUUID();
+    const verificationToken = generateOneTimeToken();
     const expiryDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     await app.prisma.user.update({
       where: { id: user.id },
       data: {
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: hashOneTimeToken(verificationToken),
         emailVerificationExpiry: expiryDate,
       },
     });
@@ -324,9 +337,10 @@ const authRoutes: FastifyPluginAsync = async (app) => {
   // Verify email
   app.post("/verify-email", async (request, reply) => {
     const { token } = z.object({ token: z.string() }).parse(request.body);
+    const tokenCandidates = buildTokenLookupCandidates(token);
 
-    const user = await app.prisma.user.findUnique({
-      where: { emailVerificationToken: token },
+    const user = await app.prisma.user.findFirst({
+      where: { emailVerificationToken: { in: tokenCandidates } },
       select: {
         id: true,
         email: true,
@@ -375,13 +389,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Generate reset token
-    const resetToken = crypto.randomUUID();
+    const resetToken = generateOneTimeToken();
     const expiryDate = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await app.prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: resetToken,
+        passwordResetToken: hashOneTimeToken(resetToken),
         passwordResetExpiry: expiryDate,
       },
     });
@@ -403,9 +417,10 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       token: z.string(),
       newPassword: z.string().min(8),
     }).parse(request.body);
+    const tokenCandidates = buildTokenLookupCandidates(token);
 
-    const user = await app.prisma.user.findUnique({
-      where: { passwordResetToken: token },
+    const user = await app.prisma.user.findFirst({
+      where: { passwordResetToken: { in: tokenCandidates } },
       select: {
         id: true,
         email: true,

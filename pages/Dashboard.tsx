@@ -1,17 +1,86 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, BookOpen, Activity, ClipboardList, Thermometer, Calendar, FileText, Download, Sparkles } from 'lucide-react';
-import { RECENT_DOCS } from '../constants';
+import { BookOpen, Activity, ClipboardList, Thermometer, Calendar, FileText, Sparkles } from 'lucide-react';
 import { UpgradeBanner } from '../src/components/UpgradeBanner';
 import { PaymentModal } from '../src/components/PaymentModal';
 import { GenerationReconnectModal } from '../components/GenerationReconnectModal';
 import { useGenerationReconnect } from '../src/hooks/useGenerationReconnect';
 import SEO from '../src/components/SEO';
+import { DocumentListItem, listDocuments } from '../src/services/backendApi';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { inProgressGeneration, dismissInProgressGeneration } = useGenerationReconnect();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<DocumentListItem[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadRecentProjects = async () => {
+      setIsLoadingProjects(true);
+      setProjectsError(null);
+
+      try {
+        const response = await listDocuments({ page: 1, pageSize: 5 });
+        if (!mounted) return;
+        setRecentProjects(response.items);
+      } catch (error) {
+        if (!mounted) return;
+        setProjectsError(
+          error instanceof Error ? error.message : 'Failed to load recent projects.',
+        );
+      } finally {
+        if (mounted) {
+          setIsLoadingProjects(false);
+        }
+      }
+    };
+
+    void loadRecentProjects();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const formatLastEdited = (iso: string) => {
+    const updatedAt = new Date(iso);
+    const diffMs = updatedAt.getTime() - Date.now();
+    const diffMinutes = Math.round(diffMs / (1000 * 60));
+
+    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+    if (Math.abs(diffMinutes) < 60) {
+      return rtf.format(diffMinutes, 'minute');
+    }
+
+    const diffHours = Math.round(diffMinutes / 60);
+    if (Math.abs(diffHours) < 24) {
+      return rtf.format(diffHours, 'hour');
+    }
+
+    const diffDays = Math.round(diffHours / 24);
+    if (Math.abs(diffDays) < 7) {
+      return rtf.format(diffDays, 'day');
+    }
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(updatedAt);
+  };
+
+  const getTypeBadgeClassName = (documentType: string) => {
+    if (documentType.includes('Lesson')) return 'bg-blue-100 text-blue-800';
+    if (documentType.includes('OSCE')) return 'bg-rose-100 text-rose-800';
+    if (documentType.includes('Scheme')) return 'bg-amber-100 text-amber-800';
+    if (documentType.includes('Clinical')) return 'bg-emerald-100 text-emerald-800';
+    return 'bg-indigo-100 text-indigo-800';
+  };
 
   const ActionCard = ({ icon: Icon, title, desc, color }: { icon: React.ComponentType<{ size?: number }>, title: string, desc: string, color: string }) => (
     <div 
@@ -102,34 +171,69 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {RECENT_DOCS.map((doc) => (
-                <tr key={doc.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-50 rounded text-blue-600">
-                        <FileText size={18} />
-                      </div>
-                      <span className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer" onClick={() => navigate('/editor')}>{doc.title}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                        ${doc.type.includes('Lesson') ? 'bg-blue-100 text-blue-800' : 
-                          doc.type.includes('OSCE') ? 'bg-rose-100 text-rose-800' :
-                          doc.type.includes('Scheme') ? 'bg-amber-100 text-amber-800' :
-                          doc.type.includes('Clinical') ? 'bg-emerald-100 text-emerald-800' :
-                          'bg-indigo-100 text-indigo-800'}`}>
-                      {doc.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{doc.lastEdited}</td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-slate-400 hover:text-blue-600 transition-colors" title="Export PDF">
-                      <Download size={18} />
-                    </button>
+              {isLoadingProjects && (
+                <tr>
+                  <td className="px-6 py-8 text-sm text-slate-500" colSpan={4}>
+                    Loading recent projects...
                   </td>
                 </tr>
-              ))}
+              )}
+
+              {!isLoadingProjects && projectsError && (
+                <tr>
+                  <td className="px-6 py-8 text-sm text-red-600" colSpan={4}>
+                    {projectsError}
+                  </td>
+                </tr>
+              )}
+
+              {!isLoadingProjects && !projectsError && recentProjects.length === 0 && (
+                <tr>
+                  <td className="px-6 py-8 text-sm text-slate-500" colSpan={4}>
+                    No projects yet. Generate your first document to see it here.
+                  </td>
+                </tr>
+              )}
+
+              {!isLoadingProjects &&
+                !projectsError &&
+                recentProjects.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 rounded text-blue-600">
+                          <FileText size={18} />
+                        </div>
+                        <span
+                          className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer"
+                          onClick={() => navigate(`/editor/${doc.id}`)}
+                        >
+                          {doc.title}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeBadgeClassName(
+                          doc.documentType,
+                        )}`}
+                      >
+                        {doc.documentType}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-500">
+                      {formatLastEdited(doc.updatedAt)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => navigate(`/editor/${doc.id}`)}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>

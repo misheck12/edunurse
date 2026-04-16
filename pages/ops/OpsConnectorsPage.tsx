@@ -23,23 +23,6 @@ const CONNECTOR_TYPES = [
   "manual_upload",
 ] as const;
 
-function hasGoogleRefreshToken(secretJson: unknown) {
-  if (!secretJson || typeof secretJson !== "object" || Array.isArray(secretJson)) {
-    return false;
-  }
-
-  const secret = secretJson as Record<string, unknown>;
-  const googleOAuth =
-    secret.googleOAuth && typeof secret.googleOAuth === "object" && !Array.isArray(secret.googleOAuth)
-      ? (secret.googleOAuth as Record<string, unknown>)
-      : {};
-
-  return Boolean(
-    (typeof googleOAuth.refreshToken === "string" && googleOAuth.refreshToken.trim()) ||
-    (typeof secret.refreshToken === "string" && secret.refreshToken.trim()),
-  );
-}
-
 function formatCoverage(value?: number) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "0.0%";
@@ -1122,7 +1105,7 @@ const OpsConnectorsPage: React.FC = () => {
                   <div>
                     <div className="text-xs uppercase text-slate-500">Connection</div>
                     <div className="text-slate-700">
-                      {hasGoogleRefreshToken(detail.secretJson) ? "Connected" : "Disconnected"}
+                      {detail.googleDriveConnected ? "Connected" : "Disconnected"}
                     </div>
                   </div>
                 )}

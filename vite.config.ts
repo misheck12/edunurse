@@ -1,9 +1,12 @@
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, process.cwd(), '');
+    const enablePwaInDev = env.VITE_ENABLE_PWA_DEV === 'true';
+
     return {
       server: {
         port: 3000,
@@ -34,18 +37,9 @@ export default defineConfig(({ mode }) => {
                 handler: 'NetworkOnly',
               },
               {
+                // Never cache API responses because they can contain authenticated user data.
                 urlPattern: /^https?:\/\/[^/]+\/api\/v1\/.*/i,
-                handler: 'NetworkFirst',
-                options: {
-                  cacheName: 'api-cache',
-                  expiration: {
-                    maxEntries: 100,
-                    maxAgeSeconds: 60 * 60 * 24 // 24 hours
-                  },
-                  cacheableResponse: {
-                    statuses: [200] // Don't cache opaque responses (status 0)
-                  }
-                }
+                handler: 'NetworkOnly',
               },
               {
                 urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -72,7 +66,7 @@ export default defineConfig(({ mode }) => {
             ]
           },
           devOptions: {
-            enabled: true,
+            enabled: enablePwaInDev,
             navigateFallback: '/index.html',
             navigateFallbackAllowlist: [/^\/(?!api\/).*/],
             suppressWarnings: true,

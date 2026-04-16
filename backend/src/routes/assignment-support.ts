@@ -34,6 +34,7 @@ const assignmentSupportRequestSchema = z.object({
   programme: z.string().trim().min(1).max(200).optional(),
   studentGoal: z.string().trim().min(1).max(1200).optional(),
   currentAttempt: z.string().trim().min(1).max(12000).optional(),
+  personalInsights: z.string().trim().min(1).max(4000).optional(),
   messages: z.array(assignmentSupportMessageSchema).max(20).default([]),
   // Enhanced pedagogy fields
   wordCount: z.number().int().min(100).max(20000).optional(),
@@ -254,7 +255,10 @@ const assignmentSupportRoutes: FastifyPluginAsync = async (app) => {
       school: z.string().trim().max(240).optional(),
       course: z.string().trim().max(200).optional(),
       programme: z.string().trim().max(200).optional(),
+      moduleCode: z.string().trim().max(80).optional(),
+      lecturerName: z.string().trim().max(120).optional(),
       dueDate: z.string().trim().max(50).optional(),
+      submissionDate: z.string().trim().max(50).optional(),
       wordCount: z.number().int().min(0).max(30000).optional(),
       references: z.array(z.object({
         type: z.enum(["book", "journal", "website", "other"]),

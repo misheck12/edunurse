@@ -3,6 +3,9 @@ import { z } from "zod";
 
 loadEnv();
 
+const DEFAULT_AUTH_TOKEN_SECRET = "replace_this_with_a_long_random_secret";
+const DEFAULT_SUPERADMIN_PASSWORD = "ChangeMe123!";
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -69,10 +72,10 @@ const EnvSchema = z.object({
   AUTH_TOKEN_SECRET: z
     .string()
     .min(16)
-    .default("replace_this_with_a_long_random_secret"),
+    .default(DEFAULT_AUTH_TOKEN_SECRET),
   AUTH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(86400),
   SUPERADMIN_EMAIL: z.string().email().default("superadmin@edunurse.local"),
-  SUPERADMIN_PASSWORD: z.string().min(8).default("ChangeMe123!"),
+  SUPERADMIN_PASSWORD: z.string().min(8).default(DEFAULT_SUPERADMIN_PASSWORD),
   LLM_PROVIDER_PRIORITY: z.string().default("azure,gemini,deepseek"),
   AZURE_OPENAI_ENDPOINT: z.string().optional(),
   AZURE_OPENAI_API_KEY: z.string().optional(),
@@ -135,4 +138,22 @@ if (!parsed.success) {
   throw new Error(`Invalid environment: ${errors}`);
 }
 
-export const env = parsed.data;
+const validatedEnv = parsed.data;
+
+if (validatedEnv.NODE_ENV === "production") {
+  const productionErrors: string[] = [];
+
+  if (validatedEnv.AUTH_TOKEN_SECRET === DEFAULT_AUTH_TOKEN_SECRET) {
+    productionErrors.push("AUTH_TOKEN_SECRET must be set to a unique production secret.");
+  }
+
+  if (validatedEnv.SUPERADMIN_PASSWORD === DEFAULT_SUPERADMIN_PASSWORD) {
+    productionErrors.push("SUPERADMIN_PASSWORD must be changed from the default value.");
+  }
+
+  if (productionErrors.length > 0) {
+    throw new Error(`Invalid production environment: ${productionErrors.join(" ")}`);
+  }
+}
+
+export const env = validatedEnv;

@@ -4,21 +4,20 @@
  */
 
 import {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  HeadingLevel,
   AlignmentType,
-  PageBreak,
-  Header,
-  Footer,
-  PageNumber,
   BorderStyle,
+  Document,
+  Footer,
+  Header,
+  HeadingLevel,
+  Packer,
+  PageBreak,
+  PageNumber,
+  Paragraph,
+  SectionType,
+  TextRun,
   convertInchesToTwip,
 } from "docx";
-
-// ── Types ──
 
 export interface ExportReference {
   type: "book" | "journal" | "website" | "other";
@@ -40,22 +39,24 @@ export interface AssignmentExportInput {
   school?: string;
   course?: string;
   programme?: string;
+  moduleCode?: string;
+  lecturerName?: string;
   dueDate?: string;
+  submissionDate?: string;
   wordCount?: number;
   references?: ExportReference[];
 }
 
-// ── Constants ──
-
 const FONT = "Times New Roman";
-const BODY_SIZE = 24;  // 12pt in half-points
-const H2_SIZE = 28;    // 14pt
-const H3_SIZE = 26;    // 13pt
+const BODY_SIZE = 24;
+const H2_SIZE = 28;
+const H3_SIZE = 26;
 const COVER_TITLE_SIZE = 36;
-const LINE_SPACING = 480; // double-spacing
+const LINE_SPACING = 480;
 const PARA_AFTER = 120;
-
-// ── Content parsing ──
+const HEADER_SIZE = 18;
+const META_SIZE = 21;
+const COVER_LABEL_SIZE = 22;
 
 type ContentBlock =
   | { kind: "h2"; text: string }
@@ -66,129 +67,286 @@ type ContentBlock =
 const SECTION_HEADING_RE =
   /^(Introduction|Conclusion|Discussion|Methodology|Literature Review|Background|Findings|Recommendations|Abstract|Summary|Analysis|Results|References|Bibliography)/i;
 
+const REFERENCE_SECTION_RE = /^(#{1,3}\s*)?(references|reference list|bibliography)\s*:?$/i;
+
+function stripGeneratedReferenceSection(raw: string) {
+  const lines = raw.split("\n");
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (REFERENCE_SECTION_RE.test(lines[index].trim())) {
+      return lines.slice(0, index).join("\n").trimEnd();
+    }
+  }
+
+  return raw;
+}
+
 function parseBlocks(raw: string): ContentBlock[] {
   const blocks: ContentBlock[] = [];
 
   for (const line of raw.split("\n")) {
-    const t = line.trim();
+    const trimmed = line.trim();
 
-    if (!t) { blocks.push({ kind: "blank" }); continue; }
-
-    // Markdown headings → H2 / H3
-    if (t.startsWith("### ")) { blocks.push({ kind: "h3", text: t.slice(4).trim() }); continue; }
-    if (t.startsWith("## "))  { blocks.push({ kind: "h2", text: t.slice(3).trim() }); continue; }
-    if (t.startsWith("# "))   { blocks.push({ kind: "h2", text: t.slice(2).trim() }); continue; }
-
-    // Standalone section headings
-    if (
-      t.length < 80 &&
-      !t.endsWith(",") && !t.endsWith(";") &&
-      (SECTION_HEADING_RE.test(t) || /^[A-Z][A-Z\s:]{2,}$/.test(t) || /^\d+(\.\d+)*\s+[A-Z]/.test(t))
-    ) {
-      const major = SECTION_HEADING_RE.test(t) || /^[A-Z][A-Z\s:]{2,}$/.test(t) || /^\d+\s+[A-Z]/.test(t);
-      blocks.push({ kind: major ? "h2" : "h3", text: t });
+    if (!trimmed) {
+      blocks.push({ kind: "blank" });
       continue;
     }
 
-    // Body paragraph — parse inline **bold** and *italic*
+    if (trimmed.startsWith("### ")) {
+      blocks.push({ kind: "h3", text: trimmed.slice(4).trim() });
+      continue;
+    }
+
+    if (trimmed.startsWith("## ")) {
+      blocks.push({ kind: "h2", text: trimmed.slice(3).trim() });
+      continue;
+    }
+
+    if (trimmed.startsWith("# ")) {
+      blocks.push({ kind: "h2", text: trimmed.slice(2).trim() });
+      continue;
+    }
+
+    if (
+      trimmed.length < 80 &&
+      !trimmed.endsWith(",") &&
+      !trimmed.endsWith(";") &&
+      (SECTION_HEADING_RE.test(trimmed) ||
+        /^[A-Z][A-Z\s:]{2,}$/.test(trimmed) ||
+        /^\d+(\.\d+)*\s+[A-Z]/.test(trimmed))
+    ) {
+      const major =
+        SECTION_HEADING_RE.test(trimmed) ||
+        /^[A-Z][A-Z\s:]{2,}$/.test(trimmed) ||
+        /^\d+\s+[A-Z]/.test(trimmed);
+
+      blocks.push({ kind: major ? "h2" : "h3", text: trimmed });
+      continue;
+    }
+
     const runs: TextRun[] = [];
     const re = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(t)) !== null) {
-      if (m[2])      runs.push(new TextRun({ text: m[2], bold: true, italics: true, size: BODY_SIZE, font: FONT }));
-      else if (m[3]) runs.push(new TextRun({ text: m[3], bold: true, size: BODY_SIZE, font: FONT }));
-      else if (m[4]) runs.push(new TextRun({ text: m[4], italics: true, size: BODY_SIZE, font: FONT }));
-      else if (m[5]) runs.push(new TextRun({ text: m[5], size: BODY_SIZE, font: FONT }));
+    let match: RegExpExecArray | null;
+
+    while ((match = re.exec(trimmed)) !== null) {
+      if (match[2]) {
+        runs.push(
+          new TextRun({ text: match[2], bold: true, italics: true, size: BODY_SIZE, font: FONT }),
+        );
+      } else if (match[3]) {
+        runs.push(new TextRun({ text: match[3], bold: true, size: BODY_SIZE, font: FONT }));
+      } else if (match[4]) {
+        runs.push(new TextRun({ text: match[4], italics: true, size: BODY_SIZE, font: FONT }));
+      } else if (match[5]) {
+        runs.push(new TextRun({ text: match[5], size: BODY_SIZE, font: FONT }));
+      }
     }
-    if (runs.length === 0) runs.push(new TextRun({ text: t, size: BODY_SIZE, font: FONT }));
+
+    if (runs.length === 0) {
+      runs.push(new TextRun({ text: trimmed, size: BODY_SIZE, font: FONT }));
+    }
+
     blocks.push({ kind: "body", runs });
   }
 
   return blocks;
 }
 
-// ── Cover page ──
+function formatAcademicDate(value?: string) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function buildMetaSummary(input: AssignmentExportInput) {
+  return [
+    input.moduleCode ? `Module: ${input.moduleCode}` : "",
+    input.programme,
+    input.course ? `Course: ${input.course}` : "",
+    input.citationStyle ? `Style: ${input.citationStyle.toUpperCase()}` : "",
+    input.wordCount ? `Target: ${input.wordCount} words` : "",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function buildShortHeaderTitle(title: string) {
+  const compact = title.replace(/\s+/g, " ").trim();
+  if (compact.length <= 60) return compact;
+  return `${compact.slice(0, 57).trimEnd()}...`;
+}
+
+function buildCoverDetailParagraph(label: string, value: string) {
+  return new Paragraph({
+    children: [
+      new TextRun({ text: `${label}: `, font: FONT, size: BODY_SIZE, bold: true }),
+      new TextRun({ text: value, font: FONT, size: BODY_SIZE }),
+    ],
+    alignment: AlignmentType.LEFT,
+    indent: { left: convertInchesToTwip(1.15) },
+    spacing: { after: 120 },
+  });
+}
 
 function buildCoverPage(input: AssignmentExportInput): Paragraph[] {
-  const p: Paragraph[] = [];
+  const paragraphs: Paragraph[] = [];
   const center = AlignmentType.CENTER;
-  const run = (text: string, opts?: { bold?: boolean; size?: number }) =>
-    new TextRun({ text, font: FONT, size: opts?.size ?? BODY_SIZE, bold: opts?.bold });
+  const run = (text: string, opts?: { bold?: boolean; italics?: boolean; size?: number; color?: string }) =>
+    new TextRun({
+      text,
+      font: FONT,
+      size: opts?.size ?? BODY_SIZE,
+      bold: opts?.bold,
+      italics: opts?.italics,
+      color: opts?.color,
+    });
+  const submissionDate =
+    formatAcademicDate(input.submissionDate ?? new Date().toISOString()) ??
+    new Date().toLocaleDateString("en-GB");
+  const programmeLine = [input.programme, input.course ? `Course: ${input.course}` : ""]
+    .filter(Boolean)
+    .join(" | ");
+  const detailLines = [
+    input.studentName ? { label: "Student name", value: input.studentName } : null,
+    input.studentNumber ? { label: "Student number", value: input.studentNumber } : null,
+    input.programme ? { label: "Programme", value: input.programme } : null,
+    input.course ? { label: "Course / module", value: input.course } : null,
+    input.moduleCode ? { label: "Module code", value: input.moduleCode } : null,
+    input.lecturerName ? { label: "Lecturer / tutor", value: input.lecturerName } : null,
+    input.citationStyle ? { label: "Citation style", value: input.citationStyle.toUpperCase() } : null,
+    input.wordCount ? { label: "Target word count", value: `${input.wordCount} words` } : null,
+    input.dueDate ? { label: "Due date", value: formatAcademicDate(input.dueDate) ?? input.dueDate } : null,
+    { label: "Submission date", value: submissionDate },
+  ].filter((detail): detail is { label: string; value: string } => Boolean(detail));
 
-  // Push down from top
-  p.push(new Paragraph({ children: [], spacing: { before: 3600 } }));
+  paragraphs.push(new Paragraph({ children: [], spacing: { before: 2600 } }));
 
-  // Institution
   if (input.school) {
-    p.push(new Paragraph({
+    paragraphs.push(new Paragraph({
       children: [run(input.school.toUpperCase(), { bold: true, size: 28 })],
-      alignment: center, spacing: { after: 160 },
+      alignment: center,
+      spacing: { after: 140 },
     }));
   }
 
-  // Programme & course
-  const subLine = [input.programme, input.course ? `Course: ${input.course}` : ""].filter(Boolean).join("  •  ");
-  if (subLine) {
-    p.push(new Paragraph({
-      children: [run(subLine)],
-      alignment: center, spacing: { after: 600 },
+  if (programmeLine) {
+    paragraphs.push(new Paragraph({
+      children: [run(programmeLine, { italics: true, size: META_SIZE })],
+      alignment: center,
+      spacing: { after: 320 },
     }));
   }
 
-  // Title
-  p.push(new Paragraph({
+  paragraphs.push(new Paragraph({
+    children: [run("ACADEMIC ASSIGNMENT", { bold: true, size: COVER_LABEL_SIZE })],
+    alignment: center,
+    spacing: { after: 220 },
+  }));
+
+  paragraphs.push(new Paragraph({
     children: [run(input.title, { bold: true, size: COVER_TITLE_SIZE })],
     alignment: center,
-    spacing: { before: 200, after: 200 },
+    spacing: { before: 120, after: 260 },
     border: {
       top: { color: "000000", space: 8, style: BorderStyle.SINGLE, size: 6 },
       bottom: { color: "000000", space: 8, style: BorderStyle.SINGLE, size: 6 },
     },
   }));
 
-  // Student info block
-  const details: string[] = [];
-  if (input.studentName)   details.push(`Name: ${input.studentName}`);
-  if (input.studentNumber) details.push(`Student No: ${input.studentNumber}`);
-  if (input.dueDate)       details.push(`Due: ${input.dueDate}`);
-  details.push(`Date: ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`);
-
-  p.push(new Paragraph({ children: [], spacing: { before: 600 } }));
-  for (const d of details) {
-    p.push(new Paragraph({ children: [run(d)], alignment: center, spacing: { after: 80 } }));
+  const metaSummary = buildMetaSummary(input);
+  if (metaSummary) {
+    paragraphs.push(new Paragraph({
+      children: [run(metaSummary, { italics: true, size: META_SIZE, color: "666666" })],
+      alignment: center,
+      spacing: { after: 320 },
+    }));
   }
 
-  // Page break
-  p.push(new Paragraph({ children: [new PageBreak()] }));
-  return p;
+  paragraphs.push(new Paragraph({
+    children: [run("Submission Details", { bold: true, size: META_SIZE })],
+    alignment: AlignmentType.LEFT,
+    indent: { left: convertInchesToTwip(1.15) },
+    spacing: { before: 180, after: 160 },
+  }));
+
+  for (const detail of detailLines) {
+    paragraphs.push(buildCoverDetailParagraph(detail.label, detail.value));
+  }
+
+  return paragraphs;
 }
 
-// ── Body paragraphs ──
+function buildBodyOpening(input: AssignmentExportInput): Paragraph[] {
+  const bodyContext = [
+    input.moduleCode ? `Module code: ${input.moduleCode}` : "",
+    input.lecturerName ? `Lecturer: ${input.lecturerName}` : "",
+    `Submitted: ${formatAcademicDate(input.submissionDate ?? new Date().toISOString()) ?? new Date().toLocaleDateString("en-GB")}`,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+  const opening: Paragraph[] = [];
+
+  opening.push(new Paragraph({
+    children: [new TextRun({ text: input.title, font: FONT, size: H2_SIZE + 2, bold: true })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 120 },
+  }));
+
+  const metaSummary = buildMetaSummary(input);
+  if (metaSummary) {
+    opening.push(new Paragraph({
+      children: [new TextRun({ text: metaSummary, font: FONT, size: META_SIZE, italics: true, color: "666666" })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: bodyContext ? 90 : 280 },
+    }));
+  }
+
+  if (bodyContext) {
+    opening.push(new Paragraph({
+      children: [new TextRun({ text: bodyContext, font: FONT, size: BODY_SIZE, color: "666666" })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 280 },
+    }));
+  } else if (!metaSummary) {
+    opening.push(new Paragraph({ children: [], spacing: { after: 180 } }));
+  }
+
+  return opening;
+}
 
 function buildBody(blocks: ContentBlock[]): Paragraph[] {
-  const p: Paragraph[] = [];
+  const paragraphs: Paragraph[] = [];
 
-  for (const b of blocks) {
-    switch (b.kind) {
+  for (const block of blocks) {
+    switch (block.kind) {
       case "h2":
-        p.push(new Paragraph({
-          children: [new TextRun({ text: b.text, bold: true, size: H2_SIZE, font: FONT })],
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text: block.text, bold: true, size: H2_SIZE, font: FONT })],
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 360, after: 200 },
         }));
         break;
 
       case "h3":
-        p.push(new Paragraph({
-          children: [new TextRun({ text: b.text, bold: true, italics: true, size: H3_SIZE, font: FONT })],
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text: block.text, bold: true, italics: true, size: H3_SIZE, font: FONT })],
           heading: HeadingLevel.HEADING_3,
           spacing: { before: 280, after: 160 },
         }));
         break;
 
       case "body":
-        p.push(new Paragraph({
-          children: b.runs,
+        paragraphs.push(new Paragraph({
+          children: block.runs,
           alignment: AlignmentType.JUSTIFIED,
           spacing: { after: PARA_AFTER, line: LINE_SPACING },
           indent: { firstLine: convertInchesToTwip(0.5) },
@@ -196,15 +354,13 @@ function buildBody(blocks: ContentBlock[]): Paragraph[] {
         break;
 
       case "blank":
-        p.push(new Paragraph({ children: [], spacing: { after: 80 } }));
+        paragraphs.push(new Paragraph({ children: [], spacing: { after: 80 } }));
         break;
     }
   }
 
-  return p;
+  return paragraphs;
 }
-
-// ── Reference list ──
 
 function formatReference(ref: ExportReference, index: number, style: CitationStyle): string {
   switch (style) {
@@ -250,12 +406,12 @@ function formatReference(ref: ExportReference, index: number, style: CitationSty
 }
 
 function buildReferenceList(refs: ExportReference[], style: CitationStyle): Paragraph[] {
-  const p: Paragraph[] = [];
+  const paragraphs: Paragraph[] = [];
 
-  p.push(new Paragraph({ children: [new PageBreak()] }));
+  paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
 
   const heading = style === "vancouver" ? "REFERENCES" : "REFERENCE LIST";
-  p.push(new Paragraph({
+  paragraphs.push(new Paragraph({
     children: [new TextRun({ text: heading, bold: true, size: H2_SIZE, font: FONT })],
     heading: HeadingLevel.HEADING_2,
     alignment: AlignmentType.CENTER,
@@ -264,28 +420,30 @@ function buildReferenceList(refs: ExportReference[], style: CitationStyle): Para
 
   const sorted = [...refs].sort((a, b) => a.authors.localeCompare(b.authors));
 
-  for (let i = 0; i < sorted.length; i++) {
-    p.push(new Paragraph({
-      children: [new TextRun({ text: formatReference(sorted[i], i, style).trim(), size: BODY_SIZE, font: FONT })],
+  for (let index = 0; index < sorted.length; index += 1) {
+    paragraphs.push(new Paragraph({
+      children: [new TextRun({ text: formatReference(sorted[index], index, style).trim(), size: BODY_SIZE, font: FONT })],
       spacing: { after: 160, line: LINE_SPACING },
       indent: { left: convertInchesToTwip(0.5), hanging: convertInchesToTwip(0.5) },
     }));
   }
 
-  return p;
+  return paragraphs;
 }
 
-// ── Main export function ──
-
 export async function buildAssignmentDocx(input: AssignmentExportInput): Promise<Buffer> {
-  const blocks = parseBlocks(input.content);
+  const contentForBody =
+    input.references && input.references.length > 0
+      ? stripGeneratedReferenceSection(input.content)
+      : input.content;
+  const blocks = parseBlocks(contentForBody);
   const style = input.citationStyle ?? "apa7";
-
-  const children: Paragraph[] = [
-    ...buildCoverPage(input),
-    ...buildBody(blocks),
-    ...(input.references && input.references.length > 0 ? buildReferenceList(input.references, style) : []),
-  ];
+  const margins = {
+    top: convertInchesToTwip(1),
+    right: convertInchesToTwip(1),
+    bottom: convertInchesToTwip(1),
+    left: convertInchesToTwip(1),
+  };
 
   const doc = new Document({
     styles: {
@@ -296,39 +454,50 @@ export async function buildAssignmentDocx(input: AssignmentExportInput): Promise
         },
       },
     },
-    sections: [{
-      properties: {
-        page: {
-          margin: {
-            top: convertInchesToTwip(1),
-            right: convertInchesToTwip(1),
-            bottom: convertInchesToTwip(1),
-            left: convertInchesToTwip(1),
-          },
-          pageNumbers: { start: 1 },
+    sections: [
+      {
+        properties: {
+          page: { margin: margins },
         },
+        children: buildCoverPage(input),
       },
-      headers: {
-        default: new Header({
-          children: [new Paragraph({
-            children: [new TextRun({
-              text: input.title.length > 50 ? input.title.slice(0, 50) + "…" : input.title,
-              italics: true, size: 18, font: FONT, color: "888888",
+      {
+        properties: {
+          type: SectionType.NEXT_PAGE,
+          page: {
+            margin: margins,
+            pageNumbers: { start: 1 },
+          },
+        },
+        headers: {
+          default: new Header({
+            children: [new Paragraph({
+              children: [new TextRun({
+                text: buildShortHeaderTitle(input.title),
+                italics: true,
+                size: HEADER_SIZE,
+                font: FONT,
+                color: "888888",
+              })],
+              alignment: AlignmentType.RIGHT,
             })],
-            alignment: AlignmentType.RIGHT,
-          })],
-        }),
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [new Paragraph({
+              children: [new TextRun({ children: [PageNumber.CURRENT], size: 20, font: FONT })],
+              alignment: AlignmentType.CENTER,
+            })],
+          }),
+        },
+        children: [
+          ...buildBodyOpening(input),
+          ...buildBody(blocks),
+          ...(input.references && input.references.length > 0 ? buildReferenceList(input.references, style) : []),
+        ],
       },
-      footers: {
-        default: new Footer({
-          children: [new Paragraph({
-            children: [new TextRun({ children: [PageNumber.CURRENT], size: 20, font: FONT })],
-            alignment: AlignmentType.CENTER,
-          })],
-        }),
-      },
-      children,
-    }],
+    ],
   });
 
   return Packer.toBuffer(doc) as Promise<Buffer>;

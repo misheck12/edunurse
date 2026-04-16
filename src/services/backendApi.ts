@@ -320,6 +320,14 @@ async function request<T>(
   const { authMode = "default", headers, ...restOptions } = options;
   const authHeaders = buildAuthHeaders(authMode);
 
+  const method = restOptions.method?.toUpperCase() ?? "GET";
+  const hasBody = restOptions.body !== undefined;
+  const isWriteMethod = ["POST", "PUT", "PATCH"].includes(method);
+  
+  if (isWriteMethod && !hasBody) {
+    restOptions.body = "{}";
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...restOptions,
     headers: {
@@ -1165,6 +1173,7 @@ export interface AssignmentSupportInput {
   programme?: string;
   studentGoal?: string;
   currentAttempt?: string;
+  personalInsights?: string;
   messages?: AssignmentSupportMessage[];
   // Enhanced pedagogy fields
   wordCount?: number;
@@ -1222,7 +1231,10 @@ export async function exportAssignmentDraft(input: {
   school?: string;
   course?: string;
   programme?: string;
+  moduleCode?: string;
+  lecturerName?: string;
   dueDate?: string;
+  submissionDate?: string;
   wordCount?: number;
   references?: {
     type: "book" | "journal" | "website" | "other";
@@ -1350,7 +1362,8 @@ export interface AdminConnector {
   connectorType: ConnectorType;
   status: ConnectorStatus;
   configJson: Record<string, unknown>;
-  secretJson?: Record<string, unknown> | null;
+  hasStoredSecret: boolean;
+  googleDriveConnected: boolean | null;
   defaultCurriculumVersionId?: string | null;
   createdByUserId: string;
   lastSyncedAt?: string | null;

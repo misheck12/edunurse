@@ -41,6 +41,8 @@ const bannerBaseClass =
   "fixed left-1/2 z-[60] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 rounded-xl border px-4 py-3 shadow-lg backdrop-blur";
 
 export function PwaManager() {
+  const pwaEnabled =
+    import.meta.env.PROD || import.meta.env.VITE_ENABLE_PWA_DEV === "true";
   const isOnline = useOnlineStatus();
   const [installEvent, setInstallEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
@@ -65,6 +67,8 @@ export function PwaManager() {
   }, []);
 
   useEffect(() => {
+    if (!pwaEnabled) return;
+
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
       if (isStandalone() || installDismissed) return;
@@ -86,14 +90,18 @@ export function PwaManager() {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
     };
-  }, [installDismissed]);
+  }, [installDismissed, pwaEnabled]);
 
   const showInstallBanner = useMemo(
     () =>
       Boolean(
-        installEvent && !installDismissed && !isStandalone() && isOnline,
+        pwaEnabled &&
+          installEvent &&
+          !installDismissed &&
+          !isStandalone() &&
+          isOnline,
       ),
-    [installEvent, installDismissed, isOnline],
+    [installEvent, installDismissed, isOnline, pwaEnabled],
   );
 
   const handleInstall = async () => {

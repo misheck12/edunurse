@@ -280,6 +280,36 @@ function parseConnectorGoogleSecret(secretRaw: unknown) {
   };
 }
 
+function hasConnectorSecret(secretRaw: unknown) {
+  return Boolean(
+    secretRaw &&
+      typeof secretRaw === "object" &&
+      !Array.isArray(secretRaw) &&
+      Object.keys(secretRaw as Record<string, unknown>).length > 0,
+  );
+}
+
+function toPublicConnector<T extends { connectorType: string; secretJson?: unknown }>(
+  connector: T,
+) {
+  const googleDriveConnected =
+    connector.connectorType === "google_drive"
+      ? Boolean(parseConnectorGoogleSecret(connector.secretJson).refreshToken)
+      : null;
+  const hasStoredSecret = hasConnectorSecret(connector.secretJson);
+  const connectorRecord = connector as T & { secretJson?: unknown };
+  const { secretJson: _secretJson, ...safeConnector } = connectorRecord;
+
+  return {
+    ...safeConnector,
+    hasStoredSecret,
+    googleDriveConnected,
+  } as Omit<T, "secretJson"> & {
+    hasStoredSecret: boolean;
+    googleDriveConnected: boolean | null;
+  };
+}
+
 type IngestionQualitySummary = {
   chunksIndexed: number;
   chunksEmbedded: number;
@@ -487,7 +517,7 @@ const adminRagRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    return reply.code(201).send(connector);
+    return reply.code(201).send(toPublicConnector(connector));
   });
 
   app.post("/google-drive/browse", async (request) => {
@@ -650,7 +680,7 @@ const adminRagRoutes: FastifyPluginAsync = async (app) => {
       page: query.page,
       pageSize: query.pageSize,
       total,
-      items,
+      items: items.map((item) => toPublicConnector(item)),
     };
   });
 
@@ -670,7 +700,7 @@ const adminRagRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    return reply.code(201).send(connector);
+    return reply.code(201).send(toPublicConnector(connector));
   });
 
   app.get("/connectors/:connectorId", async (request) => {
@@ -711,7 +741,7 @@ const adminRagRoutes: FastifyPluginAsync = async (app) => {
     const ingestionQuality = await getConnectorIngestionQuality(app, connector.id);
 
     return {
-      ...connector,
+      ...toPublicConnector(connector),
       runs: connector.runs.map((run) => ({
         ...run,
         ingestionQuality: runQualityMap.get(run.id) ?? emptyIngestionQuality(),
@@ -748,7 +778,7 @@ const adminRagRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    return updated;
+    return toPublicConnector(updated);
   });
 
   app.post("/connectors/:connectorId/sync", async (request, reply) => {
@@ -838,7 +868,7 @@ const adminRagRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       message: "Google Drive connector disconnected.",
-      connector: updated,
+      connector: toPublicConnector(updated),
     };
   });
 
