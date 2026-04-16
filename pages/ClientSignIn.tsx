@@ -4,6 +4,13 @@ import { Lock, Mail } from "lucide-react";
 import { useAuth } from "../src/context/AuthContext";
 import { signinClient } from "../src/services/backendApi";
 import SEO from "../src/components/SEO";
+import AuthPageLayout, {
+  authButtonClassName,
+  authInlineLinkClassName,
+  authInputWithIconClassName,
+  authLabelClassName,
+  getAuthAlertClassName,
+} from "../src/components/auth/AuthPageLayout";
 
 const ClientSignIn: React.FC = () => {
   const navigate = useNavigate();
@@ -37,98 +44,105 @@ const ClientSignIn: React.FC = () => {
     }
   };
 
+  const footer = (
+    <>
+      <div className="text-center text-sm text-slate-600">
+        Need an account?{" "}
+        <Link to="/signup" className={authInlineLinkClassName}>
+          Create one
+        </Link>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500">
+        <Link to="/terms" className="transition-colors hover:text-slate-900">
+          Terms of Service
+        </Link>
+        <span aria-hidden="true">&middot;</span>
+        <Link to="/privacy" className="transition-colors hover:text-slate-900">
+          Privacy Policy
+        </Link>
+      </div>
+    </>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-10">
+    <>
       <SEO
         title="Sign In"
         description="Sign in to EduNurse Pro. Access AI-powered lesson plan generation for nursing and midwifery educators."
         canonicalPath="/signin"
       />
-      <div className="mx-auto w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-bold text-slate-900">Client Sign In</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Sign in to your educator account.
-        </p>
+      <AuthPageLayout
+        eyebrow="Client access"
+        title="Client Sign In"
+        description="Sign in to your educator account."
+        contentWidthClassName="max-w-lg"
+        footer={footer}
+      >
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {errorMessage && <div className={getAuthAlertClassName()}>{errorMessage}</div>}
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          {errorMessage && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          )}
-
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
+          <div className="space-y-2">
+            <label htmlFor="signin-email" className={authLabelClassName}>
               Email
-            </span>
+            </label>
             <div className="relative">
-              <Mail
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                <Mail size={18} />
+              </div>
               <input
+                id="signin-email"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                inputMode="email"
                 required
                 disabled={isSubmitting}
-                className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className={authInputWithIconClassName}
               />
             </div>
-          </label>
+          </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
+          <div className="space-y-2">
+            <label htmlFor="signin-password" className={authLabelClassName}>
               Password
-            </span>
+            </label>
             <div className="relative">
-              <Lock
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                <Lock size={18} />
+              </div>
               <input
+                id="signin-password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
                 required
                 disabled={isSubmitting}
-                className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className={authInputWithIconClassName}
               />
             </div>
-          </label>
+          </div>
+
+          <div className="flex items-center justify-end text-sm">
+            <Link to="/forgot-password" className={authInlineLinkClassName}>
+              Forgot your password?
+            </Link>
+          </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className={authButtonClassName}
           >
             {isSubmitting ? "Signing in..." : "Sign In"}
           </button>
         </form>
-
-        <div className="mt-4 text-center">
-          <Link
-            to="/forgot-password"
-            className="text-sm text-blue-600 hover:underline"
-          >
-            Forgot password?
-          </Link>
-        </div>
-
-        <div className="mt-4 text-sm text-slate-600">
-          Need an account?{" "}
-          <Link to="/signup" className="font-medium text-blue-600 hover:underline">
-            Create one
-          </Link>
-        </div>
-
-        <div className="mt-3 text-center text-xs text-slate-400">
-          <Link to="/terms" className="hover:underline">Terms</Link>
-          {" · "}
-          <Link to="/privacy" className="hover:underline">Privacy</Link>
-        </div>
-      </div>
-    </div>
+      </AuthPageLayout>
+    </>
   );
 };
 

@@ -8,8 +8,22 @@ import {
   isValidIdentityDocument,
   normalizeIdentityDocument,
 } from "../src/utils/identityDocument";
+import AuthPageLayout, {
+  authCheckboxClassName,
+  authInlineLinkClassName,
+  getAuthAlertClassName,
+} from "../src/components/auth/AuthPageLayout";
 
 const ClientSignUp: React.FC = () => {
+  const informationOptions = [
+    "Nursing Student",
+    "Midwifery Student",
+    "Nurse Educator",
+    "Clinical Instructor",
+    "Registered Nurse",
+    "Other",
+  ];
+
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [form, setForm] = React.useState({
@@ -67,175 +81,216 @@ const ClientSignUp: React.FC = () => {
     }
   };
 
+  const footer = (
+    <div className="text-center text-sm text-slate-600">
+      Already have an account?{" "}
+      <Link to="/signin" className={authInlineLinkClassName}>
+        Sign in
+      </Link>
+    </div>
+  );
+
+  const compactLabelClassName =
+    "block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500";
+  const compactInputClassName =
+    "block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-base leading-5 text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 md:text-sm";
+  const compactButtonClassName =
+    "inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-blue-400 disabled:shadow-none";
+
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-10">
+    <>
       <SEO
         title="Sign Up"
         description="Create your EduNurse Pro account. Start generating AI-powered, curriculum-aligned lesson plans for nursing and midwifery education."
         canonicalPath="/signup"
         keywords="nurse educator signup, create account, nursing lesson plans"
       />
-      <div className="mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-bold text-slate-900">Client Sign Up</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Create your educator account. All fields are required.
-        </p>
+      <AuthPageLayout
+        eyebrow="New account"
+        title="Client Sign Up"
+        description="Create your educator account. All fields are required."
+        contentWidthClassName="max-w-3xl"
+        contentAlignment="start"
+        footer={footer}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMessage && <div className={getAuthAlertClassName()}>{errorMessage}</div>}
 
-        <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {errorMessage && (
-            <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {errorMessage}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-1.5">
+              <label htmlFor="signup-full-name" className={compactLabelClassName}>
+                Full Name
+              </label>
+              <input
+                id="signup-full-name"
+                type="text"
+                value={form.fullName}
+                onChange={(event) => setField("fullName", event.target.value)}
+                autoComplete="name"
+                required
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
             </div>
-          )}
 
-          <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Full Name
-            </span>
-            <input
-              type="text"
-              value={form.fullName}
-              onChange={(event) => setField("fullName", event.target.value)}
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-email" className={compactLabelClassName}>
+                Email
+              </label>
+              <input
+                id="signup-email"
+                type="email"
+                value={form.email}
+                onChange={(event) => setField("email", event.target.value)}
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                inputMode="email"
+                required
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
+            </div>
 
-          <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Email
-            </span>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => setField("email", event.target.value)}
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-phone" className={compactLabelClassName}>
+                Phone Number
+              </label>
+              <input
+                id="signup-phone"
+                type="tel"
+                value={form.phoneNumber}
+                onChange={(event) => setField("phoneNumber", event.target.value)}
+                autoComplete="tel"
+                inputMode="tel"
+                required
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
+            </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Phone Number
-            </span>
-            <input
-              type="tel"
-              value={form.phoneNumber}
-              onChange={(event) => setField("phoneNumber", event.target.value)}
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-nrc" className={compactLabelClassName}>
+                NRC / Passport Number
+              </label>
+              <input
+                id="signup-nrc"
+                type="text"
+                value={form.nrc}
+                onChange={(event) => setField("nrc", event.target.value)}
+                placeholder="123456/12/1 or AB1234567"
+                autoCapitalize="characters"
+                required
+                disabled={isSubmitting}
+                title={identityDocumentErrorMessage}
+                className={compactInputClassName}
+              />
+            </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              NRC / Passport Number
-            </span>
-            <input
-              type="text"
-              value={form.nrc}
-              onChange={(event) => setField("nrc", event.target.value)}
-              placeholder="123456/12/1 or AB1234567"
-              required
-              disabled={isSubmitting}
-              title={identityDocumentErrorMessage}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-student-number" className={compactLabelClassName}>
+                Student Number
+              </label>
+              <input
+                id="signup-student-number"
+                type="text"
+                value={form.studentNumber}
+                onChange={(event) => setField("studentNumber", event.target.value)}
+                autoComplete="off"
+                required
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
+            </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Student Number
-            </span>
-            <input
-              type="text"
-              value={form.studentNumber}
-              onChange={(event) => setField("studentNumber", event.target.value)}
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-school" className={compactLabelClassName}>
+                School
+              </label>
+              <input
+                id="signup-school"
+                type="text"
+                value={form.school}
+                onChange={(event) => setField("school", event.target.value)}
+                autoComplete="organization"
+                required
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
+            </div>
 
-          <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              School
-            </span>
-            <input
-              type="text"
-              value={form.school}
-              onChange={(event) => setField("school", event.target.value)}
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-information" className={compactLabelClassName}>
+                Role / Programme
+              </label>
+              <select
+                id="signup-information"
+                value={form.information}
+                onChange={(event) => setField("information", event.target.value)}
+                required
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              >
+                <option value="" disabled>
+                  Select an option
+                </option>
+                {informationOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Information
-            </span>
-            <textarea
-              value={form.information}
-              onChange={(event) => setField("information", event.target.value)}
-              required
-              disabled={isSubmitting}
-              rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              placeholder="Tell us about your role, department, or any context."
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-password" className={compactLabelClassName}>
+                Password
+              </label>
+              <input
+                id="signup-password"
+                type="password"
+                value={form.password}
+                onChange={(event) => setField("password", event.target.value)}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
+            </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Password
-            </span>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(event) => setField("password", event.target.value)}
-              required
-              minLength={8}
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
+            <div className="space-y-1.5">
+              <label htmlFor="signup-confirm-password" className={compactLabelClassName}>
+                Confirm Password
+              </label>
+              <input
+                id="signup-confirm-password"
+                type="password"
+                value={form.confirmPassword}
+                onChange={(event) => setField("confirmPassword", event.target.value)}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                disabled={isSubmitting}
+                className={compactInputClassName}
+              />
+            </div>
+          </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
-              Confirm Password
-            </span>
-            <input
-              type="password"
-              value={form.confirmPassword}
-              onChange={(event) =>
-                setField("confirmPassword", event.target.value)
-              }
-              required
-              minLength={8}
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </label>
-
-          {/* Terms & Privacy checkbox */}
-          <label className="sm:col-span-2 flex items-start gap-2.5 cursor-pointer">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
             <input
               type="checkbox"
               required
               disabled={isSubmitting}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              className={authCheckboxClassName}
             />
-            <span className="text-sm text-slate-600">
+            <span className="text-xs leading-5 text-slate-600 sm:text-sm">
               I agree to the{" "}
-              <Link to="/terms" target="_blank" className="font-medium text-blue-600 hover:underline">
+              <Link to="/terms" target="_blank" className={authInlineLinkClassName}>
                 Terms and Conditions
               </Link>{" "}
               and{" "}
-              <Link to="/privacy" target="_blank" className="font-medium text-blue-600 hover:underline">
+              <Link to="/privacy" target="_blank" className={authInlineLinkClassName}>
                 Privacy Policy
               </Link>
             </span>
@@ -244,20 +299,13 @@ const ClientSignUp: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="sm:col-span-2 mt-1 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className={compactButtonClassName}
           >
             {isSubmitting ? "Creating account..." : "Create Account"}
           </button>
         </form>
-
-        <div className="mt-4 text-sm text-slate-600">
-          Already have an account?{" "}
-          <Link to="/signin" className="font-medium text-blue-600 hover:underline">
-            Sign in
-          </Link>
-        </div>
-      </div>
-    </div>
+      </AuthPageLayout>
+    </>
   );
 };
 
